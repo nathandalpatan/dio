@@ -20,24 +20,24 @@ The Free Dictionary API provides definitions and may provide source, entry licen
 
 ## Build from source
 
-Windows development requires the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/): the MSVC Rust toolchain, Microsoft C++ Build Tools with Desktop development with C++, and Microsoft Edge WebView2. Install Node.js and npm as well.
+Windows development requires the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/): the MSVC Rust toolchain, Microsoft C++ Build Tools with Desktop development with C++, and Microsoft Edge WebView2. Install Node.js and pnpm as well.
 
 ```powershell
-npm install
-npm run tauri dev
+pnpm install
+pnpm tauri dev
 ```
 
 To run checks and create the installer:
 
 ```powershell
-npm test
-npm run build
+pnpm test
+pnpm build
 cd src-tauri
 cargo test
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cd ..
-npm run tauri build
+pnpm tauri build
 ```
 
 ## Support and limits
