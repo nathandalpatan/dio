@@ -67,6 +67,22 @@ describe('popup', () => {
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('lookup', { word: 'luck' }));
   });
 
+  it('shows additional acronym senses without repeating the primary definition', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    const lol = { ...entry, word: 'LOL', meanings: [
+      { ...entry.meanings[0], partOfSpeech: 'interjection', definitions: [
+        { ...entry.meanings[0].definitions[0], definition: 'Laugh out loud: expresses amusement.' },
+        { ...entry.meanings[0].definitions[0], definition: 'Lots of love: an affectionate sign-off.' },
+      ], synonyms: [] },
+      { ...entry.meanings[0], partOfSpeech: 'initialism', definitions: [{ ...entry.meanings[0].definitions[0], definition: 'League of Legends: a video game.' }], synonyms: [] },
+    ] };
+    send({ requestId: 1, status: 'ready', query: 'LoL', entries: [lol], expanded: true });
+    expect(screen.getAllByText('Laugh out loud: expresses amusement.')).toHaveLength(1);
+    expect(screen.getByText('Lots of love: an affectionate sign-off.')).toBeTruthy();
+    expect(screen.getByText('League of Legends: a video game.')).toBeTruthy();
+  });
+
   it('uses the actual expansion direction and handles keyboard dismissal', async () => {
     const { container } = render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());

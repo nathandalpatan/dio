@@ -77,12 +77,16 @@ export function PopupView() {
       {state.status === 'ready' && entry ? <>
         <div className="word-row"><h1>{entry.word || state.query}</h1><button className="save-button" onClick={() => void save()} aria-label={state.saved ? 'Remove saved word' : 'Save word'}>{state.saved ? '★' : '☆'}</button></div>
         <div className="phonetic-row">{phonetic && <span>{phonetic}</span>}{audio && <button className="audio-button" onClick={() => void play()} aria-label="Play pronunciation">▶ Listen</button>}</div>
-        {primary && <section className="primary"><span className="part">{primary.partOfSpeech}</span><p>{primary.definitions[0]?.definition}</p></section>}
+        {primary && <section className="primary"><span className="part">{primary.partOfSpeech}</span><p>{primary.definitions[0]?.definition}</p>{state.expanded && primary.definitions[0]?.example && <p className="example">“{primary.definitions[0].example}”</p>}</section>}
         {state.stale && <p className="notice">{state.message}</p>}
         {state.expanded && <div className="details">
-          {entry.meanings.map((meaning, index) => <section key={`${meaning.partOfSpeech}-${index}`}><h2>{meaning.partOfSpeech}</h2><ol>{meaning.definitions.map((definition, i) => <li key={i}>{definition.definition}{definition.example && <p className="example">“{definition.example}”</p>}</li>)}</ol>
-            {([['Synonyms', meaning.synonyms.concat(meaning.definitions.flatMap(definition => definition.synonyms))], ['Antonyms', meaning.antonyms.concat(meaning.definitions.flatMap(definition => definition.antonyms))]] as [string, string[]][]).map(([label, values]) => values.length > 0 && <div className="related" key={label}><strong>{label}</strong><div>{[...new Set(values)].map(word => <button key={word} onClick={() => void more(word)}>{word}</button>)}</div></div>)}
-          </section>)}
+          {entry.meanings.map((meaning, index) => {
+            const definitions = meaning === primary ? meaning.definitions.slice(1) : meaning.definitions;
+            const related = [['Synonyms', meaning.synonyms.concat(meaning.definitions.flatMap(definition => definition.synonyms))], ['Antonyms', meaning.antonyms.concat(meaning.definitions.flatMap(definition => definition.antonyms))]] as [string, string[]][];
+            if (!definitions.length && related.every(([, values]) => !values.length)) return null;
+            return <section key={`${meaning.partOfSpeech}-${index}`}><h2>{meaning.partOfSpeech}</h2>{definitions.length > 0 && <ol>{definitions.map((definition, i) => <li key={i}>{definition.definition}{definition.example && <p className="example">“{definition.example}”</p>}</li>)}</ol>}
+            {related.map(([label, values]) => values.length > 0 && <div className="related" key={label}><strong>{label}</strong><div>{[...new Set(values)].map(word => <button key={word} onClick={() => void more(word)}>{word}</button>)}</div></div>)}
+          </section>})}
           {entry.origin && <section><h2>Origin</h2><p>{entry.origin}</p></section>}
           {(entry.sourceUrls.length > 0 || entry.license || audio?.license || audio?.sourceUrl) && <footer className="source">Source: {entry.sourceUrls.map(url => safeUrl(url) && <a key={url} href={safeUrl(url)!} target="_blank" rel="noreferrer">Entry source</a>)}{entry.license && <> · {safeUrl(entry.license.url) ? <a href={safeUrl(entry.license.url)!} target="_blank" rel="noreferrer">{entry.license.name}</a> : entry.license.name}</>}{audio?.sourceUrl && safeUrl(audio.sourceUrl) && <> · <a href={safeUrl(audio.sourceUrl)!} target="_blank" rel="noreferrer">Audio source</a></>}{audio?.license && <> · Audio: {safeUrl(audio.license.url) ? <a href={safeUrl(audio.license.url)!} target="_blank" rel="noreferrer">{audio.license.name}</a> : audio.license.name}</>}</footer>}
         </div>}
