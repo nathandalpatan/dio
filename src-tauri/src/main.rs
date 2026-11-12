@@ -229,7 +229,8 @@ async fn back(app: AppHandle) -> Result<(), String> {
     let word = {
         let mut popup = shared(&app).popup.lock().unwrap();
         if popup.index == 0 {
-            return Ok(());
+            drop(popup);
+            return close_popup(app);
         }
         popup.index -= 1;
         popup.history[popup.index].clone()
@@ -250,21 +251,27 @@ fn close_popup(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn expand(app: AppHandle, expanded: bool, reduced_motion: bool) -> Result<(), String> {
     let settings = shared(&app).settings.lock().unwrap().clone();
-    let anchor = shared(&app).popup.lock().unwrap().anchor;
-    {
-        shared(&app).popup.lock().unwrap().state.expanded = expanded;
-    }
+    let (direction, request_id) = {
+        let mut popup = shared(&app).popup.lock().unwrap();
+        popup.state.expanded = expanded;
+        (popup.state.direction.clone(), popup.state.request_id)
+    };
     publish(&app);
-    let direction = popup::animate_bounds(
+    let completed = popup::animate_bounds(
         &app,
-        anchor,
         expanded,
         &settings.size,
         settings.reduced_motion || reduced_motion,
+        &direction,
     )
     .await?;
-    shared(&app).popup.lock().unwrap().state.direction = direction;
-    publish(&app);
+    if completed {
+        let popup = shared(&app).popup.lock().unwrap();
+        if popup.state.request_id == request_id && popup.state.expanded == expanded {
+            drop(popup);
+            publish(&app);
+        }
+    }
     Ok(())
 }
 #[tauri::command]

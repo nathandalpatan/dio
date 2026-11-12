@@ -1,12 +1,13 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PopupView } from './main';
+import { AppView, PopupView } from './main';
 
 const api = vi.hoisted(() => ({
   invoke: vi.fn(),
+  isTauri: vi.fn(),
   listeners: {} as Record<string, (event: { payload: unknown }) => void>,
 }));
-vi.mock('@tauri-apps/api/core', () => ({ invoke: api.invoke }));
+vi.mock('@tauri-apps/api/core', () => ({ invoke: api.invoke, isTauri: api.isTauri }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async (name: string, listener: (event: { payload: unknown }) => void) => {
   api.listeners[name] = listener;
   return () => { delete api.listeners[name]; };
@@ -20,11 +21,28 @@ const send = (payload: object) => act(() => api.listeners['popup-state']({ paylo
 beforeEach(() => {
   Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({ matches: false }) });
   api.listeners = {};
+  api.isTauri.mockReset().mockReturnValue(true);
   api.invoke.mockReset().mockImplementation((command: string) => Promise.resolve(command === 'popup_state' ? initial : command === 'get_settings' ? settings : undefined));
 });
 afterEach(cleanup);
 
 describe('popup', () => {
+  it('shows browser instructions without invoking the desktop backend', () => {
+    api.isTauri.mockReturnValue(false);
+    render(<AppView />);
+    expect(screen.getByText(/DIO runs in its desktop window/)).toBeTruthy();
+    expect(api.invoke).not.toHaveBeenCalled();
+    expect(Object.keys(api.listeners)).toHaveLength(0);
+  });
+
+  it('mounts the popup in the desktop runtime', async () => {
+    const { container } = render(<AppView />);
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('popup_state', undefined));
+    expect(container.querySelector('.popup-header')?.hasAttribute('data-tauri-drag-region')).toBe(true);
+    expect(screen.getByText('DIO').hasAttribute('data-tauri-drag-region')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Close' }).hasAttribute('data-tauri-drag-region')).toBe(false);
+  });
+
   it('shows loading, timeout, and missing definition states', async () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
@@ -60,6 +78,17 @@ describe('popup', () => {
     expect(screen.getByText('↘ Less')).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Backspace' });
     fireEvent.keyDown(window, { key: 'Escape' });
+    expect(api.invoke).toHaveBeenCalledWith('back', undefined);
+    expect(api.invoke).toHaveBeenCalledWith('close_popup', undefined);
+  });
+
+  it('keeps dismissal available when a lookup fails', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    send({ requestId: 1, status: 'network', message: 'Dictionary service returned 502 Bad Gateway.' });
+    expect(screen.queryByText('More')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(api.invoke).toHaveBeenCalledWith('back', undefined);
     expect(api.invoke).toHaveBeenCalledWith('close_popup', undefined);
   });

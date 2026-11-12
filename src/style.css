@@ -10,9 +10,10 @@ a { color: #176b87; }
 .brand { color: #26788d; font-size: 11px; letter-spacing: .2em; font-weight: 800; }
 .popup { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #f9f7f0; border: 1px solid #d9dedb; box-shadow: 0 12px 36px #19344324; }
 .popup-header, .popup-footer { display: flex; justify-content: space-between; align-items: center; flex: none; padding: 8px 14px; }
-.popup-header { border-bottom: 1px solid #e1e7e3; }
+.popup-header { border-bottom: 1px solid #e1e7e3; user-select: none; -webkit-user-select: none; }
 .popup-header .brand { margin-left: -12px; }
 .icon-button { border: 0; background: none; color: #5b7180; font-size: 20px; line-height: 20px; padding: 0 4px; }
+.icon-button:active, .save-button:active, .audio-button:active, .expand-button:active { transform: scale(.97); }
 .content { flex: 1; min-height: 0; overflow: auto; padding: 12px 20px 4px; }
 .word-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h1, h2, p { margin-top: 0; }
@@ -25,7 +26,7 @@ h1, h2, p { margin-top: 0; }
 .primary p { margin: 3px 0 0; line-height: 1.38; font-size: 13px; }
 .popup-footer { border-top: 1px solid #e1e7e3; color: #91a09d; font-size: 11px; min-height: 34px; }
 .expand-button { background: none; border: 0; color: #1c7890; font-size: 11px; font-weight: 700; }
-.details { padding: 14px 0 8px; animation: reveal .2s ease; }
+.details { padding: 14px 0 8px; }
 .details section { padding: 12px 0; border-top: 1px solid #e5e9e5; }
 .details h2 { margin: 0 0 8px; color: #26788d; font-size: 12px; font-style: italic; }
 .details ol { margin: 0; padding-left: 22px; }
@@ -47,7 +48,6 @@ h1, h2, p { margin-top: 0; }
 .theme-dark .primary p { color: #e9eeec; }
 .theme-system { color-scheme: light dark; }
 @media (prefers-color-scheme: dark) { .theme-system { color: #e9eeec; background: #1e2c35; border-color: #344652; } .theme-system .popup-header, .theme-system .popup-footer, .theme-system .details section { border-color: #344652; } }
-@keyframes reveal { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .reduced-motion *, .reduced-motion *::before, .reduced-motion *::after { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 .settings { max-width: 720px; min-height: 100vh; padding: 32px 42px 90px; margin: auto; background: #faf9f5; }

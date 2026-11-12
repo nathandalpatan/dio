@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import './style.css';
 
@@ -16,7 +16,7 @@ const empty: PopupState = { requestId: 0, status: 'idle', query: '', entries: []
 const messageFor: Record<string, string> = {
   idle: 'Highlight text and press Ctrl+Alt+D.',
   loading: 'Looking up definition…',
-  unsupported: 'This app does not expose its selection to Windows accessibility.',
+  unsupported: "Couldn't capture the selected text. Try highlighting it again.",
   notFound: 'No definition found.',
   timeout: 'The selection or dictionary request timed out.',
   network: 'The dictionary is unavailable.',
@@ -68,9 +68,9 @@ export function PopupView() {
   const toggle = async () => { try { await call('expand', { expanded: !state.expanded, reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches }); } catch (e) { setError(asError(e)); } };
   const save = async () => { try { await call('save_word', { save: !state.saved }); } catch (e) { setError(asError(e)); } };
   return <main className={`popup ${state.expanded ? 'expanded' : ''} theme-${settings?.theme || 'system'} ${settings?.reducedMotion ? 'reduced-motion' : ''}`}>
-    <header className="popup-header">
-      <button className="icon-button" aria-label="Back" disabled={!state.canBack} onClick={() => void call('back').catch(e => setError(asError(e)))}>←</button>
-      <span className="brand">DIO</span>
+    <header className="popup-header" data-tauri-drag-region>
+      <button className="icon-button" aria-label="Back" onClick={() => void call('back').catch(e => setError(asError(e)))}>←</button>
+      <span className="brand" data-tauri-drag-region>DIO</span>
       <button className="icon-button" aria-label="Close" onClick={() => void call('close_popup')}>×</button>
     </header>
     <div className="content">
@@ -89,7 +89,7 @@ export function PopupView() {
       </> : <div className="status"><span>{state.status === 'loading' ? '◌' : '⌕'}</span><p>{state.message || messageFor[state.status] || 'Choose a word to look up.'}</p></div>}
       {error && <p className="notice error" role="alert">{error}</p>}
     </div>
-    <footer className="popup-footer"><span>{state.status === 'ready' && !state.expanded ? primary?.partOfSpeech : ''}</span><button className="expand-button" onClick={() => void toggle()}>{state.expanded ? opposite[state.direction] : arrows[state.direction]} {state.expanded ? 'Less' : 'More'}</button></footer>
+    <footer className="popup-footer"><span>{state.status === 'ready' && !state.expanded ? primary?.partOfSpeech : ''}</span>{state.status === 'ready' && <button className="expand-button" onClick={() => void toggle()}>{state.expanded ? opposite[state.direction] : arrows[state.direction]} {state.expanded ? 'Less' : 'More'}</button>}</footer>
   </main>;
 }
 
@@ -120,7 +120,7 @@ function SettingsView() {
   const save = async () => { if (!draft) return; setError(''); try { await call('update_settings', { next: draft }); setNotice('Settings saved.'); } catch (e) { setError(asError(e)); } };
   const clear = async () => { setError(''); try { await call('clear_cache'); setNotice('Dictionary cache cleared. Saved words remain.'); } catch (e) { setError(asError(e)); } };
   if (!draft) return <main className="settings"><p>Loading settings…</p>{error && <p role="alert">{error}</p>}</main>;
-  return <main className="settings"><header><span className="brand">DIO</span><h1>Settings</h1><p>Look up highlighted text from any app that exposes its selection to Windows.</p></header>
+  return <main className="settings"><header><span className="brand">DIO</span><h1>Settings</h1><p>Look up highlighted text from supported Windows apps.</p></header>
     <section><h2>Activation</h2><label className="check"><input type="checkbox" checked={draft.keyboardEnabled} onChange={e => change({ keyboardEnabled: e.target.checked })}/> Keyboard shortcut</label>
       <label>Shortcut<input value={capturing ? 'Press a key combination…' : draft.shortcut} readOnly onFocus={() => setCapturing(true)} onBlur={() => setCapturing(false)} onKeyDown={capture}/></label>
       <label className="check"><input type="checkbox" checked={draft.middleClick} onChange={e => change({ middleClick: e.target.checked })}/> Middle click activation</label><p className="hint">The source app may also handle the middle click normally.</p></section>
@@ -131,11 +131,16 @@ function SettingsView() {
     <section><h2>Pronunciation</h2><label>Preferred audio<select value={draft.pronunciation} onChange={e => change({ pronunciation: e.target.value })}><option value="first">First available</option><option value="us">US English</option><option value="uk">UK English</option></select></label><label className="check"><input type="checkbox" checked={draft.autoplay} onChange={e => change({ autoplay: e.target.checked })}/> Play automatically</label></section>
     <section><h2>System</h2><label className="check"><input type="checkbox" checked={draft.startup} onChange={e => change({ startup: e.target.checked })}/> Start DIO when I sign in</label></section>
     <section><h2>Saved vocabulary</h2>{saved.length ? <div className="saved-list">{saved.map(word => <button key={word} onClick={() => void call('open_saved', { word }).catch(e => setError(asError(e)))}>{word}</button>)}</div> : <p className="hint">No saved words yet.</p>}</section>
-    <section><h2>Local data</h2><button className="secondary" onClick={() => void clear()}>Clear dictionary cache</button><p className="hint">Selections are sent only to the Free Dictionary API for lookup. Saved words and settings stay on this computer.</p></section>
+    <section><h2>Local data</h2><button className="secondary" onClick={() => void clear()}>Clear dictionary cache</button><p className="hint">DIO checks its bundled dictionary and local cache first. Words they do not contain are sent to the Free Dictionary API. Saved words and settings stay on this computer.</p></section>
     {error && <p className="notice error" role="alert">{error}</p>}{notice && <p className="notice">{notice}</p>}
     <div className="settings-actions"><button onClick={() => void save()}>Save settings</button></div>
   </main>;
 }
 
+export function AppView() {
+  if (!isTauri()) return <main className="popup"><div className="content"><div className="status"><span>⌕</span><p>DIO runs in its desktop window. Select text in another app and press Ctrl+Alt+D to look it up.</p></div></div></main>;
+  return window.location.search.includes('settings') ? <SettingsView/> : <PopupView/>;
+}
+
 const root = document.getElementById('root');
-if (root) createRoot(root).render(window.location.search.includes('settings') ? <SettingsView/> : <PopupView/>);
+if (root) createRoot(root).render(<AppView/>);
