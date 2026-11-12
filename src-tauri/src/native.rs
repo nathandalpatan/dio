@@ -58,15 +58,44 @@ impl SelectionReader {
         });
         Self { sender }
     }
-    pub async fn read(&self, foreground: isize) -> Result<Selection, String> {
+    pub async fn read(&self, foreground: isize, owner: isize) -> Result<Selection, String> {
         let (reply, result) = oneshot::channel();
-        self.sender
-            .try_send(Request { foreground, reply })
-            .map_err(|_| {
-                "Selection retrieval timed out while another request is pending. Try again shortly."
-                    .to_string()
-            })?;
-        tokio::time::timeout(std::time::Duration::from_millis(1500), result).await.map_err(|_| "Selection retrieval timed out. This application may not support accessible selection.".to_string())?.map_err(|_| "Selection service stopped.".to_string())?
+        let accessibility = match self.sender.try_send(Request { foreground, reply }) {
+            Ok(()) => {
+                match tokio::time::timeout(std::time::Duration::from_millis(1200), result).await {
+                    Ok(Ok(result)) => result,
+                    Ok(Err(_)) => Err("Accessibility service stopped.".into()),
+                    Err(_) => Err("Accessibility timed out.".into()),
+                }
+            }
+            Err(_) => Err("Accessibility request is still pending.".into()),
+        };
+        match accessibility {
+            Ok(selection) => {
+                eprintln!("DIO capture: UI Automation succeeded");
+                Ok(selection)
+            }
+            Err(error)
+                if error == "DIO does not read password fields."
+                    || error == "Copy is disabled in terminal windows." =>
+            {
+                eprintln!("DIO capture: UI Automation failed: {error}; clipboard skipped");
+                Err(error)
+            }
+            Err(error) => {
+                eprintln!("DIO capture: UI Automation failed: {error}");
+                let result = tokio::task::spawn_blocking(move || {
+                    crate::clipboard::capture(foreground, owner)
+                })
+                .await
+                .map_err(|e| e.to_string())?;
+                match &result {
+                    Ok(_) => eprintln!("DIO capture: clipboard succeeded"),
+                    Err(error) => eprintln!("DIO capture: clipboard failed: {error}"),
+                }
+                result
+            }
+        }
     }
 }
 pub fn foreground() -> isize {
@@ -86,6 +115,14 @@ unsafe fn read_selection(automation: &IUIAutomation, original: isize) -> Result<
         if element.CurrentProcessId().map_err(|e| e.to_string())? as u32 != process {
             break;
         }
+        let terminal = element
+            .CurrentAutomationId()
+            .ok()
+            .is_some_and(|id| id.to_string().to_ascii_lowercase().contains("terminal"))
+            || element
+                .CurrentClassName()
+                .ok()
+                .is_some_and(|name| name.to_string().to_ascii_lowercase().contains("xterm"));
         if element
             .CurrentIsPassword()
             .map_err(|e| e.to_string())?
@@ -148,6 +185,9 @@ unsafe fn read_selection(automation: &IUIAutomation, original: isize) -> Result<
                     }
                 }
             }
+        }
+        if terminal {
+            return Err("Copy is disabled in terminal windows.".into());
         }
         element = match walker.GetParentElement(&element) {
             Ok(parent) => parent,

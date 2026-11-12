@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod clipboard;
 mod dictionary;
 mod local_dictionary;
 mod model;
@@ -13,6 +14,7 @@ use local_dictionary::LocalDictionary;
 use model::{normalize, PopupState, Settings};
 use native::{Hooks, SelectionReader};
 use popup::Popup;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Mutex;
 use storage::{now, Storage};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -25,7 +27,9 @@ struct AppState {
     storage: Mutex<Storage>,
     settings: Mutex<Settings>,
     popup: Mutex<Popup>,
+    motion: AtomicU64,
     shortcut_error: Mutex<Option<String>>,
+    capturing: AtomicBool,
 }
 
 fn shared(app: &AppHandle) -> &AppState {
@@ -72,10 +76,16 @@ fn fail(app: &AppHandle, id: u64, status: &str, message: String) {
     if !popup.update_if_current(id, |state| {
         state.status = status.into();
         state.message = message;
+        state.expanded = false;
     }) {
         return;
     }
+    let anchor = popup.anchor;
     drop(popup);
+    let settings = shared(app).settings.lock().unwrap().clone();
+    if let Ok(direction) = popup::set_bounds(app, anchor, false, &settings.size) {
+        shared(app).popup.lock().unwrap().state.direction = direction;
+    }
     publish(app);
 }
 
@@ -173,30 +183,33 @@ async fn activate(app: AppHandle) {
     let Some(window) = app.get_webview_window("popup") else {
         return;
     };
-    if window.is_visible().unwrap_or(false) {
-        let _ = window.set_focus();
+    let foreground = native::foreground();
+    if ["popup", "settings"].into_iter().any(|label| {
+        app.get_webview_window(label)
+            .and_then(|window| window.hwnd().ok())
+            .is_some_and(|hwnd| hwnd.0 as isize == foreground)
+    }) {
         return;
     }
-    let foreground = native::foreground();
-    match shared(&app).reader.read(foreground).await {
+    if shared(&app).capturing.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let owner = window.hwnd().ok().map(|hwnd| hwnd.0 as isize).unwrap_or(0);
+    let result = shared(&app).reader.read(foreground, owner).await;
+    shared(&app).capturing.store(false, Ordering::Release);
+    match result {
         Ok(selection) => {
             shared(&app).popup.lock().unwrap().anchor = selection.bounds;
-            let _ = lookup_inner(app, selection.text, true).await;
+            let _ = lookup_inner(app.clone(), selection.text, true).await;
         }
-        Err(message) => {
+        Err(_) => {
             shared(&app).popup.lock().unwrap().anchor = None;
             let id = begin(&app, String::new(), false);
-            let settings = shared(&app).settings.lock().unwrap().clone();
-            let _ = popup::set_bounds(&app, None, false, &settings.size);
             fail(
                 &app,
                 id,
-                if message.contains("timed out") {
-                    "timeout"
-                } else {
-                    "unsupported"
-                },
-                message,
+                "unsupported",
+                "Couldn't capture the selected text. Try highlighting it again.".into(),
             );
             let _ = popup::show(&app);
         }
@@ -401,7 +414,9 @@ fn main() {
                 storage: Mutex::new(storage),
                 settings: Mutex::new(settings.clone()),
                 popup: Mutex::new(Popup::default()),
+                motion: AtomicU64::new(0),
                 shortcut_error: Mutex::new(None),
+                capturing: AtomicBool::new(false),
             });
             app.manage(Hooks::new(app.handle().clone(), settings.middle_click));
             if settings.keyboard_enabled {
