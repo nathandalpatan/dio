@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod dictionary;
+mod local_dictionary;
 mod model;
 mod native;
 mod popup;
@@ -8,6 +9,7 @@ mod settings;
 mod storage;
 
 use dictionary::Dictionary;
+use local_dictionary::LocalDictionary;
 use model::{normalize, PopupState, Settings};
 use native::{Hooks, SelectionReader};
 use popup::Popup;
@@ -18,6 +20,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 struct AppState {
     dictionary: Dictionary,
+    local_dictionary: Mutex<LocalDictionary>,
     reader: SelectionReader,
     storage: Mutex<Storage>,
     settings: Mutex<Settings>,
@@ -77,15 +80,29 @@ fn fail(app: &AppHandle, id: u64, status: &str, message: String) {
 }
 
 async fn resolve(app: AppHandle, word: String, id: u64) {
-    let cached = match shared(&app).storage.lock().unwrap().get(&word, now()) {
-        Ok(value) => value,
+    let local = match shared(&app).local_dictionary.lock().unwrap().lookup(&word) {
+        Ok(entries) => entries,
         Err(error) => {
-            fail(&app, id, "storage", error);
-            return;
+            eprintln!("DIO local dictionary failed: {error}");
+            None
+        }
+    };
+    let local_hit = local.is_some();
+    let cached = if local_hit {
+        None
+    } else {
+        match shared(&app).storage.lock().unwrap().get(&word, now()) {
+            Ok(value) => value,
+            Err(error) => {
+                fail(&app, id, "storage", error);
+                return;
+            }
         }
     };
     let cache_hit = cached.as_ref().is_some_and(|item| item.fresh);
-    let fetched = if cache_hit {
+    let fetched = if let Some(entries) = local {
+        Ok(entries)
+    } else if cache_hit {
         Ok(cached.as_ref().unwrap().entries.clone())
     } else {
         shared(&app).dictionary.lookup(&word).await
@@ -100,7 +117,7 @@ async fn resolve(app: AppHandle, word: String, id: u64) {
             }
         },
     };
-    if !stale && !cache_hit {
+    if !stale && !cache_hit && !local_hit {
         if let Err(error) = shared(&app)
             .storage
             .lock()
@@ -371,8 +388,15 @@ fn main() {
             let storage = Storage::open(&directory).map_err(std::io::Error::other)?;
             let settings = storage.settings().map_err(std::io::Error::other)?;
             let dictionary = Dictionary::new().map_err(std::io::Error::other)?;
+            let local_path = app.path().resolve(
+                "resources/english.sqlite3",
+                tauri::path::BaseDirectory::Resource,
+            )?;
+            let local_dictionary =
+                LocalDictionary::open(&local_path).map_err(std::io::Error::other)?;
             app.manage(AppState {
                 dictionary,
+                local_dictionary: Mutex::new(local_dictionary),
                 reader: SelectionReader::new(),
                 storage: Mutex::new(storage),
                 settings: Mutex::new(settings.clone()),

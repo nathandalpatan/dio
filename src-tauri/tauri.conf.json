@@ -30,6 +30,7 @@
   },
   "bundle": {
     "active": true,
+    "resources": ["resources/english.sqlite3", "resources/DICTIONARY-LICENSE.md"],
     "targets": [
       "nsis"
     ],
