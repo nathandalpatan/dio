@@ -22,13 +22,32 @@ impl Dictionary {
         Ok(Self { client })
     }
     pub async fn lookup(&self, word: &str) -> Result<Vec<Entry>, LookupError> {
-        let mut url =
-            Url::parse("https://api.dictionaryapi.dev/api/v2/entries/en/").expect("fixed URL");
-        url.path_segments_mut().expect("base URL").push(word);
-        self.fetch(url).await
+        self.fetch(entry_url(word)).await
     }
     async fn fetch(&self, url: Url) -> Result<Vec<Entry>, LookupError> {
-        let mut response = self.client.get(url).send().await.map_err(network_error)?;
+        let mut response = self
+            .client
+            .get(url.clone())
+            .send()
+            .await
+            .map_err(network_error)?;
+        for delay in [150, 400] {
+            if !matches!(
+                response.status(),
+                StatusCode::BAD_GATEWAY
+                    | StatusCode::SERVICE_UNAVAILABLE
+                    | StatusCode::GATEWAY_TIMEOUT
+            ) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(delay)).await;
+            response = self
+                .client
+                .get(url.clone())
+                .send()
+                .await
+                .map_err(network_error)?;
+        }
         let status = response.status();
         if status == StatusCode::NOT_FOUND {
             return Err(LookupError {
@@ -41,6 +60,13 @@ impl Dictionary {
                 kind: "network",
                 message: if status == StatusCode::TOO_MANY_REQUESTS {
                     "The dictionary is busy. Try again shortly.".into()
+                } else if matches!(
+                    status,
+                    StatusCode::BAD_GATEWAY
+                        | StatusCode::SERVICE_UNAVAILABLE
+                        | StatusCode::GATEWAY_TIMEOUT
+                ) {
+                    "The dictionary is temporarily unavailable. Try again shortly.".into()
                 } else {
                     format!("Dictionary service returned {status}.")
                 },
@@ -100,6 +126,15 @@ impl Dictionary {
         Ok(bytes)
     }
 }
+fn entry_url(word: &str) -> Url {
+    let mut url =
+        Url::parse("https://api.dictionaryapi.dev/api/v2/entries/en/").expect("fixed URL");
+    url.path_segments_mut()
+        .expect("base URL")
+        .pop_if_empty()
+        .push(word);
+    url
+}
 fn network_error(error: reqwest::Error) -> LookupError {
     LookupError {
         kind: if error.is_timeout() {
@@ -140,6 +175,17 @@ fn validate_audio_url(address: &str) -> Result<Url, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn lookup_url_has_one_separator_before_word() {
+        assert_eq!(
+            entry_url("another").as_str(),
+            "https://api.dictionaryapi.dev/api/v2/entries/en/another"
+        );
+        assert_eq!(
+            entry_url("ice cream").as_str(),
+            "https://api.dictionaryapi.dev/api/v2/entries/en/ice%20cream"
+        );
+    }
     #[test]
     fn audio_destinations_are_restricted() {
         assert!(validate_audio_url("//ssl.gstatic.com/sound.mp3").is_ok());
@@ -189,6 +235,41 @@ mod tests {
             assert_eq!(error.kind, expected, "{status}: {}", error.message);
             server.join().unwrap();
         }
+    }
+    #[tokio::test]
+    async fn retries_gateway_errors() {
+        use std::{
+            io::{Read, Write},
+            net::TcpListener,
+        };
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            for (status, body) in [
+                ("502 Bad Gateway", ""),
+                ("503 Service Unavailable", ""),
+                (
+                    "200 OK",
+                    r#"[{"word":"test","meanings":[{"definitions":[{"definition":"A trial."}]}]}]"#,
+                ),
+            ] {
+                let (mut socket, _) = listener.accept().unwrap();
+                let mut request = [0; 4096];
+                let _ = socket.read(&mut request).unwrap();
+                let response = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                socket.write_all(response.as_bytes()).unwrap();
+            }
+        });
+        let entries = Dictionary::new()
+            .unwrap()
+            .fetch(Url::parse(&format!("http://{address}")).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(entries[0].word, "test");
+        server.join().unwrap();
     }
     #[tokio::test]
     async fn delayed_response_times_out() {
