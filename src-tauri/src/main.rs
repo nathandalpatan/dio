@@ -11,7 +11,7 @@ mod storage;
 
 use dictionary::Dictionary;
 use local_dictionary::LocalDictionary;
-use model::{normalize, PopupState, Settings};
+use model::{normalize, Entry, PopupState, Settings};
 use native::{Hooks, SelectionReader};
 use popup::Popup;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -34,6 +34,12 @@ struct AppState {
 
 fn shared(app: &AppHandle) -> &AppState {
     app.state::<AppState>().inner()
+}
+fn entry_word<'a>(query: &'a str, entries: &'a [Entry]) -> &'a str {
+    entries
+        .first()
+        .filter(|entry| !entry.word.is_empty())
+        .map_or(query, |entry| entry.word.as_str())
 }
 fn publish(app: &AppHandle) {
     popup::emit(app, &shared(app).popup.lock().unwrap().state.clone());
@@ -138,7 +144,12 @@ async fn resolve(app: AppHandle, word: String, id: u64) {
             return;
         }
     }
-    let saved = match shared(&app).storage.lock().unwrap().saved_entry(&word) {
+    let saved = match shared(&app)
+        .storage
+        .lock()
+        .unwrap()
+        .saved_entry(entry_word(&word, &entries))
+    {
         Ok(value) => value.is_some(),
         Err(error) => {
             fail(&app, id, "storage", error);
@@ -280,11 +291,11 @@ fn save_word(app: AppHandle, save: bool) -> Result<(), String> {
     if current.status != "ready" {
         return Err("No definition to save.".into());
     }
-    shared(&app)
-        .storage
-        .lock()
-        .unwrap()
-        .save(&current.query, &current.entries, save)?;
+    shared(&app).storage.lock().unwrap().save(
+        entry_word(&current.query, &current.entries),
+        &current.entries,
+        save,
+    )?;
     shared(&app).popup.lock().unwrap().state.saved = save;
     publish(&app);
     let _ = app.emit("saved-changed", ());
@@ -412,8 +423,12 @@ fn main() {
                 "resources/english.sqlite3",
                 tauri::path::BaseDirectory::Resource,
             )?;
+            let acronym_path = app.path().resolve(
+                "resources/acronyms.sqlite3",
+                tauri::path::BaseDirectory::Resource,
+            )?;
             let local_dictionary =
-                LocalDictionary::open(&local_path).map_err(std::io::Error::other)?;
+                LocalDictionary::open(&local_path, &acronym_path).map_err(std::io::Error::other)?;
             app.manage(AppState {
                 dictionary,
                 local_dictionary: Mutex::new(local_dictionary),
@@ -469,4 +484,28 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("failed to run DIO");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn name_aliases_use_one_saved_key() {
+        let resources = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
+        let dictionary = LocalDictionary::open(
+            &resources.join("english.sqlite3"),
+            &resources.join("acronyms.sqlite3"),
+        )
+        .unwrap();
+        for (alias, canonical) in [
+            ("Noah Pickering", "Noah (George) Pickering"),
+            ("Noah George Pickering", "Noah (George) Pickering"),
+            ("Andrei Vergara", "John (Andrei) Vergara"),
+            ("John Andrei Vergara", "John (Andrei) Vergara"),
+        ] {
+            let entries = dictionary.lookup(alias).unwrap().unwrap();
+            assert_eq!(entry_word(alias, &entries), canonical);
+        }
+    }
 }
