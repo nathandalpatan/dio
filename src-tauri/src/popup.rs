@@ -285,6 +285,22 @@ pub fn show(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Shows the popup while the source application keeps keyboard focus.
+pub fn show_without_focus(app: &AppHandle) -> Result<(), String> {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+    let window = app
+        .get_webview_window("popup")
+        .ok_or("Popup window is unavailable.")?;
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+    unsafe {
+        let _ = ShowWindow(HWND(hwnd.0 as *mut _), SW_SHOWNOACTIVATE);
+    }
+    app.state::<crate::native::Hooks>()
+        .visible
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

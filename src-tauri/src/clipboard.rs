@@ -1,4 +1,4 @@
-use crate::model::{normalize, Selection};
+use crate::model::{normalize_with, Limits, Selection};
 use std::{
     mem::size_of,
     ptr::copy_nonoverlapping,
@@ -18,8 +18,9 @@ use windows::Win32::{
     },
     UI::{
         Input::KeyboardAndMouse::{
-            GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT,
-            KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_C, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
+            GetAsyncKeyState, MapVirtualKeyW, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD,
+            KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, MAPVK_VK_TO_VSC, VIRTUAL_KEY, VK_C,
+            VK_CONTROL, VK_INSERT, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
         },
         WindowsAndMessaging::{GetClassNameW, GetForegroundWindow, GetWindowThreadProcessId},
     },
@@ -62,19 +63,33 @@ fn synthesized_image_format(format: u32, has_dib: bool) -> bool {
     has_dib && matches!(format, 2 | 9)
 }
 
-fn terminal_process(name: &str) -> bool {
-    matches!(
-        name,
-        "windowsterminal.exe"
-            | "wt.exe"
-            | "openconsole.exe"
-            | "conhost.exe"
-            | "cmd.exe"
-            | "powershell.exe"
-            | "pwsh.exe"
-            | "bash.exe"
-            | "wsl.exe"
-    )
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum CopyKey {
+    C,
+    Insert,
+}
+
+/// Ctrl+C interrupts terminal programs, so Windows Terminal receives Ctrl+Insert, which only
+/// copies. The classic console is refused: its clipboard owner is not the window's process,
+/// so DIO could not verify and restore the clipboard.
+fn copy_key(class: &str, process: &str) -> Result<CopyKey, String> {
+    if class.eq_ignore_ascii_case("CASCADIA_HOSTING_WINDOW_CLASS")
+        || matches!(
+            process,
+            "windowsterminal.exe" | "wt.exe" | "openconsole.exe"
+        )
+    {
+        return Ok(CopyKey::Insert);
+    }
+    if class.eq_ignore_ascii_case("ConsoleWindowClass")
+        || matches!(
+            process,
+            "conhost.exe" | "cmd.exe" | "powershell.exe" | "pwsh.exe" | "bash.exe" | "wsl.exe"
+        )
+    {
+        return Err("DIO can't read selections in the classic console. Use Windows Terminal or select the text elsewhere.".into());
+    }
+    Ok(CopyKey::C)
 }
 
 unsafe fn source_process(window: HWND) -> Result<u32, String> {
@@ -87,7 +102,7 @@ unsafe fn source_process(window: HWND) -> Result<u32, String> {
     }
 }
 
-unsafe fn safe_source(window: HWND) -> Result<u32, String> {
+unsafe fn safe_source(window: HWND) -> Result<(u32, CopyKey), String> {
     if window.0.is_null() || GetForegroundWindow() != window {
         return Err("The selected application lost focus.".into());
     }
@@ -97,11 +112,6 @@ unsafe fn safe_source(window: HWND) -> Result<u32, String> {
         return Err("Cannot identify the selected application.".into());
     }
     let class = String::from_utf16_lossy(&class[..len as usize]);
-    if class.eq_ignore_ascii_case("ConsoleWindowClass")
-        || class.eq_ignore_ascii_case("CASCADIA_HOSTING_WINDOW_CLASS")
-    {
-        return Err("Copy is disabled in terminal windows.".into());
-    }
     let pid = source_process(window)?;
     let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
         .map_err(|e| format!("Cannot inspect selected application: {e}"))?;
@@ -116,10 +126,8 @@ unsafe fn safe_source(window: HWND) -> Result<u32, String> {
     let _ = CloseHandle(process);
     query.map_err(|e| format!("Cannot inspect selected application: {e}"))?;
     let name = String::from_utf16_lossy(&path[..len as usize]).to_ascii_lowercase();
-    if terminal_process(name.rsplit('\\').next().unwrap_or(&name)) {
-        return Err("Copy is disabled in terminal windows.".into());
-    }
-    Ok(pid)
+    let copy = copy_key(&class, name.rsplit('\\').next().unwrap_or(&name))?;
+    Ok((pid, copy))
 }
 
 unsafe fn snapshot(owner: HWND) -> Result<(u32, ClipboardBackup), String> {
@@ -175,10 +183,17 @@ fn key(vk: VIRTUAL_KEY, up: bool) -> INPUT {
     INPUT {
         r#type: INPUT_KEYBOARD,
         Anonymous: INPUT_0 {
+            // Real scan codes, plus the extended flag for Insert, so apps that match key
+            // bindings on scan codes (such as Windows Terminal) see the same input as a keyboard.
             ki: KEYBDINPUT {
                 wVk: vk,
+                wScan: unsafe { MapVirtualKeyW(vk.0 as u32, MAPVK_VK_TO_VSC) } as u16,
                 dwFlags: if up {
                     KEYEVENTF_KEYUP
+                } else {
+                    Default::default()
+                } | if vk == VK_INSERT {
+                    KEYEVENTF_EXTENDEDKEY
                 } else {
                     Default::default()
                 },
@@ -188,9 +203,13 @@ fn key(vk: VIRTUAL_KEY, up: bool) -> INPUT {
     }
 }
 
-unsafe fn copy_selection(window: HWND, sequence: u32) -> Result<(), String> {
+unsafe fn copy_selection(window: HWND, sequence: u32, copy: CopyKey) -> Result<(), String> {
+    let copy = match copy {
+        CopyKey::C => VK_C,
+        CopyKey::Insert => VK_INSERT,
+    };
     let deadline = Instant::now() + Duration::from_secs(1);
-    while [VK_CONTROL, VK_MENU, VK_SHIFT, VK_LWIN, VK_RWIN, VK_C]
+    while [VK_CONTROL, VK_MENU, VK_SHIFT, VK_LWIN, VK_RWIN, copy]
         .iter()
         .any(|vk| GetAsyncKeyState(vk.0 as i32) < 0)
     {
@@ -204,19 +223,19 @@ unsafe fn copy_selection(window: HWND, sequence: u32) -> Result<(), String> {
     }
     let inputs = [
         key(VK_CONTROL, false),
-        key(VK_C, false),
-        key(VK_C, true),
+        key(copy, false),
+        key(copy, true),
         key(VK_CONTROL, true),
     ];
     if SendInput(&inputs, size_of::<INPUT>() as i32) != inputs.len() as u32 {
-        let release = [key(VK_C, true), key(VK_CONTROL, true)];
+        let release = [key(copy, true), key(VK_CONTROL, true)];
         let _ = SendInput(&release, size_of::<INPUT>() as i32);
         return Err("Copy input was blocked.".into());
     }
     Ok(())
 }
 
-unsafe fn clipboard_text() -> Result<String, String> {
+unsafe fn clipboard_text(limits: Limits) -> Result<String, String> {
     let handle = GetClipboardData(13).map_err(|_| "Copy did not provide text.".to_string())?;
     let size = GlobalSize(HGLOBAL(handle.0));
     if size < 2 || !size.is_multiple_of(2) {
@@ -226,11 +245,14 @@ unsafe fn clipboard_text() -> Result<String, String> {
     if pointer.is_null() {
         return Err("Copied text cannot be read.".into());
     }
-    let chars = std::slice::from_raw_parts(pointer as *const u16, (size / 2).min(130));
+    let chars = std::slice::from_raw_parts(
+        pointer as *const u16,
+        (size / 2).min(limits.max_chars.saturating_mul(2) + 2),
+    );
     let end = chars.iter().position(|&c| c == 0);
     let text = end.and_then(|end| String::from_utf16(&chars[..end]).ok());
     let _ = GlobalUnlock(HGLOBAL(handle.0));
-    normalize(&text.ok_or("Copied text is invalid or too long.")?)
+    normalize_with(&text.ok_or("Copied text is invalid or too long.")?, limits)
 }
 
 unsafe fn restore(owner: HWND, expected: u32, formats: ClipboardBackup) -> Result<(), String> {
@@ -266,16 +288,22 @@ unsafe fn restore(owner: HWND, expected: u32, formats: ClipboardBackup) -> Resul
     error.map_or(Ok(()), Err)
 }
 
-pub fn capture(foreground: isize, owner: isize) -> Result<Selection, String> {
+pub fn capture(
+    foreground: isize,
+    owner: isize,
+    limits: Limits,
+    terminal: bool,
+) -> Result<Selection, String> {
     unsafe {
         let window = HWND(foreground as *mut _);
         let owner = HWND(owner as *mut _);
         if owner.0.is_null() {
             return Err("Popup window is unavailable.".into());
         }
-        let pid = safe_source(window)?;
+        let (pid, copy) = safe_source(window)?;
+        let copy = if terminal { CopyKey::Insert } else { copy };
         let (sequence, formats) = snapshot(owner)?;
-        copy_selection(window, sequence)?;
+        copy_selection(window, sequence, copy)?;
         let deadline = Instant::now() + Duration::from_millis(400);
         let mut changed = sequence;
         let mut last_change = Instant::now();
@@ -306,7 +334,7 @@ pub fn capture(foreground: isize, owner: isize) -> Result<Selection, String> {
             if GetClipboardSequenceNumber() != changed || !source_owned {
                 return Err("Clipboard changed outside the selected application.".into());
             }
-            let text = clipboard_text();
+            let text = clipboard_text(limits);
             Ok((text, GetClipboardSequenceNumber(), source_owned))
         })()
         .unwrap_or_else(|error| (Err(error), 0, false));
@@ -319,13 +347,18 @@ pub fn capture(foreground: isize, owner: isize) -> Result<Selection, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{restorable_format, synthesized_image_format, terminal_process};
+    use super::{copy_key, restorable_format, synthesized_image_format, CopyKey};
     #[test]
-    fn terminal_processes_do_not_receive_copy() {
-        assert!(terminal_process("windowsterminal.exe"));
-        assert!(terminal_process("conhost.exe"));
-        assert!(!terminal_process("code.exe"));
-        assert!(!terminal_process("notepad.exe"));
+    fn terminals_never_receive_ctrl_c() {
+        assert_eq!(copy_key("Notepad", "notepad.exe"), Ok(CopyKey::C));
+        assert_eq!(copy_key("Chrome_WidgetWin_1", "code.exe"), Ok(CopyKey::C));
+        assert_eq!(
+            copy_key("CASCADIA_HOSTING_WINDOW_CLASS", "windowsterminal.exe"),
+            Ok(CopyKey::Insert)
+        );
+        assert_eq!(copy_key("Other", "openconsole.exe"), Ok(CopyKey::Insert));
+        assert!(copy_key("ConsoleWindowClass", "conhost.exe").is_err());
+        assert!(copy_key("Other", "pwsh.exe").is_err());
     }
     #[test]
     fn preserves_global_memory_formats_only() {

@@ -6,23 +6,29 @@ mod local_dictionary;
 mod model;
 mod native;
 mod popup;
+mod pronunciation;
 mod settings;
 mod storage;
+mod tts;
 
 use dictionary::Dictionary;
 use local_dictionary::LocalDictionary;
-use model::{normalize, Entry, PopupState, Settings};
+use model::{normalize, normalize_with, Entry, Limits, PopupState, Settings, WORD_LIMITS};
 use native::{Hooks, SelectionReader};
 use popup::Popup;
+use pronunciation::Pronunciations;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use storage::{now, Storage};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tts::{model_store, Tts, TtsState};
 
 struct AppState {
     dictionary: Dictionary,
     local_dictionary: Mutex<LocalDictionary>,
+    pronunciations: Mutex<Pronunciations>,
     reader: SelectionReader,
     storage: Mutex<Storage>,
     settings: Mutex<Settings>,
@@ -30,6 +36,9 @@ struct AppState {
     motion: AtomicU64,
     shortcut_error: Mutex<Option<String>>,
     capturing: AtomicBool,
+    tts: Tts,
+    model_dir: PathBuf,
+    install: Mutex<Option<Arc<AtomicBool>>>,
 }
 
 fn shared(app: &AppHandle) -> &AppState {
@@ -46,6 +55,7 @@ fn publish(app: &AppHandle) {
 }
 
 fn begin(app: &AppHandle, word: String, history: bool) -> u64 {
+    stop_popup_speech(app);
     let default_expanded = shared(app).settings.lock().unwrap().expanded;
     let preserve_expansion = app
         .get_webview_window("popup")
@@ -172,6 +182,160 @@ async fn resolve(app: AppHandle, word: String, id: u64) {
     }
     drop(popup);
     publish(&app);
+    load_pronunciations(&app, id);
+}
+
+/// Resolves IPA after the definition is visible so pronunciation data never delays or blocks
+/// a definition.
+fn load_pronunciations(app: &AppHandle, id: u64) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let (word, entries) = {
+            let popup = shared(&app).popup.lock().unwrap();
+            if popup.state.request_id != id || popup.state.status != "ready" {
+                return;
+            }
+            let word = entry_word(&popup.state.query, &popup.state.entries).to_owned();
+            (word, popup.state.entries.clone())
+        };
+        let found = shared(&app)
+            .pronunciations
+            .lock()
+            .unwrap()
+            .resolve(&word, &entries);
+        if shared(&app)
+            .popup
+            .lock()
+            .unwrap()
+            .update_if_current(id, |state| state.pronunciations = found)
+        {
+            publish(&app);
+        }
+    });
+}
+
+fn stop_popup_speech(app: &AppHandle) {
+    shared(app).tts.stop(Some("word"));
+    shared(app).tts.stop(Some("popup"));
+}
+
+fn dio_has_focus(app: &AppHandle, foreground: isize) -> bool {
+    ["popup", "settings"].into_iter().any(|label| {
+        app.get_webview_window(label)
+            .and_then(|window| window.hwnd().ok())
+            .is_some_and(|hwnd| hwnd.0 as isize == foreground)
+    })
+}
+
+fn excerpt(text: &str) -> String {
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.chars().count() > 140 {
+        format!("{}…", text.chars().take(140).collect::<String>().trim_end())
+    } else {
+        text
+    }
+}
+
+/// Turns the final capture error into a message that tells the user what to do next.
+fn capture_message(error: &str) -> String {
+    if error.starts_with("Select ")
+        || error.starts_with("DIO can't read selections")
+        || error == "DIO does not read password fields."
+    {
+        return error.to_owned();
+    }
+    match error {
+        "Copy timed out." | "Copy did not provide text." => {
+            "The app didn't copy the selection. Make sure the text is still highlighted and try again."
+        }
+        "Clipboard formats cannot be safely preserved."
+        | "Clipboard formats cannot be enumerated."
+        | "Clipboard format cannot be read." => {
+            "Your clipboard holds something DIO can't safely restore, such as a screenshot. Copy some text first, then try again."
+        }
+        "Copy input was blocked." => {
+            "Windows blocked DIO from copying in this app. It may be running as administrator."
+        }
+        "The selection or clipboard changed."
+        | "The selected application lost focus."
+        | "The active application changed. Try again."
+        | "The active application changed. Select the word again." => {
+            "The app or clipboard changed while DIO was reading. Try again."
+        }
+        _ => "Couldn't capture the selected text. Try highlighting it again.",
+    }
+    .into()
+}
+
+fn show_reader_message(app: &AppHandle, message: String) {
+    shared(app).popup.lock().unwrap().anchor = None;
+    let id = begin(app, String::new(), false);
+    fail(app, id, "unsupported", message);
+    let _ = popup::show_without_focus(app);
+}
+
+/// Reads the current selection aloud, or stops reading when the reader is already speaking.
+async fn read_aloud(app: AppHandle) {
+    let state = shared(&app).tts.state();
+    if state.active() && state.owner == "reader" {
+        shared(&app).tts.stop(Some("reader"));
+        return;
+    }
+    let Some(window) = app.get_webview_window("popup") else {
+        return;
+    };
+    let foreground = native::foreground();
+    if dio_has_focus(&app, foreground) {
+        return;
+    }
+    if let Err(message) = shared(&app).tts.available() {
+        show_reader_message(&app, message);
+        return;
+    }
+    if shared(&app).capturing.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let settings = shared(&app).settings.lock().unwrap().clone();
+    let limits = Limits {
+        max_chars: settings.reader_max_chars,
+        multiline: true,
+    };
+    let owner = window.hwnd().ok().map(|hwnd| hwnd.0 as isize).unwrap_or(0);
+    let result = shared(&app).reader.read(foreground, owner, limits).await;
+    shared(&app).capturing.store(false, Ordering::Release);
+    let selection = match result {
+        Ok(selection) => selection,
+        Err(error) => {
+            show_reader_message(&app, capture_message(&error));
+            return;
+        }
+    };
+    shared(&app).popup.lock().unwrap().anchor = selection.bounds;
+    let id = begin(&app, String::new(), false);
+    let mut popup = shared(&app).popup.lock().unwrap();
+    popup.update_if_current(id, |state| {
+        state.status = "reading".into();
+        state.reading = excerpt(&selection.text);
+        state.expanded = false;
+    });
+    let anchor = popup.anchor;
+    drop(popup);
+    if let Ok(direction) = popup::set_bounds(&app, anchor, false, &settings.size) {
+        shared(&app).popup.lock().unwrap().state.direction = direction;
+    }
+    publish(&app);
+    let _ = popup::show_without_focus(&app);
+    let voice = tts::voice(&settings.voice).unwrap_or(&tts::VOICES[0]);
+    if let Err(message) = shared(&app).tts.speak(tts::Request {
+        text: selection.text,
+        voice: voice.id.into(),
+        british: voice.accent == "uk",
+        speed: settings.speed,
+        volume: settings.volume,
+        owner: "reader".into(),
+    }) {
+        fail(&app, id, "unsupported", message);
+    }
 }
 
 async fn lookup_inner(app: AppHandle, word: String, history: bool) -> Result<(), String> {
@@ -195,33 +359,27 @@ async fn activate(app: AppHandle) {
         return;
     };
     let foreground = native::foreground();
-    if ["popup", "settings"].into_iter().any(|label| {
-        app.get_webview_window(label)
-            .and_then(|window| window.hwnd().ok())
-            .is_some_and(|hwnd| hwnd.0 as isize == foreground)
-    }) {
+    if dio_has_focus(&app, foreground) {
         return;
     }
     if shared(&app).capturing.swap(true, Ordering::AcqRel) {
         return;
     }
     let owner = window.hwnd().ok().map(|hwnd| hwnd.0 as isize).unwrap_or(0);
-    let result = shared(&app).reader.read(foreground, owner).await;
+    let result = shared(&app)
+        .reader
+        .read(foreground, owner, WORD_LIMITS)
+        .await;
     shared(&app).capturing.store(false, Ordering::Release);
     match result {
         Ok(selection) => {
             shared(&app).popup.lock().unwrap().anchor = selection.bounds;
             let _ = lookup_inner(app.clone(), selection.text, true).await;
         }
-        Err(_) => {
+        Err(error) => {
             shared(&app).popup.lock().unwrap().anchor = None;
             let id = begin(&app, String::new(), false);
-            fail(
-                &app,
-                id,
-                "unsupported",
-                "Couldn't capture the selected text. Try highlighting it again.".into(),
-            );
+            fail(&app, id, "unsupported", capture_message(&error));
             let _ = popup::show(&app);
         }
     }
@@ -250,6 +408,7 @@ async fn back(app: AppHandle) -> Result<(), String> {
 }
 #[tauri::command]
 fn close_popup(app: AppHandle) -> Result<(), String> {
+    stop_popup_speech(&app);
     app.get_webview_window("popup")
         .ok_or("Popup window is unavailable.")?
         .hide()
@@ -328,6 +487,7 @@ fn open_saved(app: AppHandle, word: String) -> Result<(), String> {
     }
     drop(popup);
     publish(&app);
+    load_pronunciations(&app, id);
     popup::show(&app)
 }
 #[tauri::command]
@@ -368,6 +528,157 @@ async fn pronunciation(app: AppHandle, url: String) -> Result<tauri::ipc::Respon
         .map(tauri::ipc::Response::new)
 }
 
+#[tauri::command]
+async fn show_settings(app: AppHandle) -> Result<(), String> {
+    open_settings(&app)
+}
+#[tauri::command]
+fn tts_state(app: AppHandle) -> TtsState {
+    shared(&app).tts.state()
+}
+#[tauri::command]
+fn tts_voices() -> &'static [tts::VoiceInfo] {
+    tts::VOICES
+}
+/// Speaks the displayed word in the preferred accent, or popup text in the chosen voice.
+#[tauri::command]
+fn tts_speak(app: AppHandle, text: String, owner: String) -> Result<(), String> {
+    if !["word", "popup"].contains(&owner.as_str()) {
+        return Err("Unknown speech request.".into());
+    }
+    let settings = shared(&app).settings.lock().unwrap().clone();
+    let text = normalize_with(
+        &text,
+        Limits {
+            max_chars: settings.reader_max_chars,
+            multiline: true,
+        },
+    )?;
+    let voice = if owner == "word" {
+        tts::voice_for_accent(&settings.voice, &settings.accent)
+    } else {
+        tts::voice(&settings.voice).unwrap_or(&tts::VOICES[0])
+    };
+    shared(&app).tts.speak(tts::Request {
+        text,
+        voice: voice.id.into(),
+        british: voice.accent == "uk",
+        speed: settings.speed,
+        volume: settings.volume,
+        owner,
+    })
+}
+#[tauri::command]
+fn tts_pause(app: AppHandle) {
+    shared(&app).tts.pause();
+}
+#[tauri::command]
+fn tts_resume(app: AppHandle) {
+    shared(&app).tts.resume();
+}
+#[tauri::command]
+fn tts_stop(app: AppHandle, owner: Option<String>) {
+    shared(&app).tts.stop(owner.as_deref());
+}
+#[tauri::command]
+async fn tts_install(app: AppHandle) -> Result<(), String> {
+    let cancel = {
+        let mut install = shared(&app).install.lock().unwrap();
+        if install.is_some() {
+            return Err("The voice model is already downloading.".into());
+        }
+        let cancel = Arc::new(AtomicBool::new(false));
+        *install = Some(cancel.clone());
+        cancel
+    };
+    let state = shared(&app);
+    state.tts.set_downloading(0.0);
+    let mut reported = -1;
+    let result = match model_store::client() {
+        Ok(client) => {
+            model_store::install(
+                &client,
+                model_store::BASE_URL,
+                &state.model_dir,
+                &model_store::assets(),
+                &cancel,
+                |done, total| {
+                    let percent = (done * 100 / total.max(1)) as i64;
+                    if percent != reported {
+                        reported = percent;
+                        state.tts.set_downloading(percent as f32 / 100.0);
+                    }
+                },
+            )
+            .await
+        }
+        Err(error) => Err(error),
+    };
+    *state.install.lock().unwrap() = None;
+    match result {
+        Ok(()) => {
+            state.tts.set_installed(true, String::new());
+            Ok(())
+        }
+        Err(error) => {
+            state.tts.set_installed(false, error.clone());
+            Err(error)
+        }
+    }
+}
+#[tauri::command]
+fn tts_cancel_install(app: AppHandle) {
+    if let Some(cancel) = shared(&app).install.lock().unwrap().as_ref() {
+        cancel.store(true, Ordering::Release);
+    }
+}
+#[tauri::command]
+async fn tts_remove(app: AppHandle) -> Result<(), String> {
+    if shared(&app).install.lock().unwrap().is_some() {
+        return Err("Wait for the download to finish or cancel it first.".into());
+    }
+    shared(&app).tts.set_installed(false, String::new());
+    model_store::remove(&shared(&app).model_dir)
+}
+
+fn create_tts(app: &AppHandle, model_dir: PathBuf, settings: &Settings) -> Tts {
+    let runtime = app
+        .path()
+        .resolve(
+            "resources/onnxruntime.dll",
+            tauri::path::BaseDirectory::Resource,
+        )
+        .unwrap_or_default();
+    let events = app.clone();
+    let loader = app.clone();
+    let dir = model_dir.clone();
+    Tts::new(
+        model_store::installed(&model_dir, &model_store::assets()),
+        settings.tts_enabled,
+        Box::new(move |state| {
+            let _ = events.emit("tts-state", state);
+        }),
+        Box::new(move || {
+            if model_store::verify(&dir, &model_store::assets()).is_err() {
+                let _ = model_store::remove(&dir);
+                let message =
+                    "The voice model was damaged and has been removed. Install it again in Settings.";
+                shared(&loader).tts.set_installed(false, message.into());
+                return Err(message.into());
+            }
+            tts::kokoro::Kokoro::load(&dir, &runtime)
+                .map(|engine| Box::new(engine) as Box<dyn tts::Backend>)
+        }),
+        Box::new(tts::kokoro::open_speakers),
+    )
+}
+
+fn is_binding(shortcut: &Shortcut, binding: &str) -> bool {
+    binding
+        .parse::<Shortcut>()
+        .is_ok_and(|parsed| parsed.id() == shortcut.id())
+}
+
 fn open_settings(app: &AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("settings") {
         window
@@ -400,11 +711,20 @@ fn main() {
         ))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state == ShortcutState::Pressed {
+                        let reader = {
+                            let settings = shared(app).settings.lock().unwrap();
+                            settings.reader_enabled
+                                && is_binding(shortcut, &settings.reader_shortcut)
+                        };
                         let app = app.clone();
                         tauri::async_runtime::spawn(async move {
-                            activate(app).await;
+                            if reader {
+                                read_aloud(app).await;
+                            } else {
+                                activate(app).await;
+                            }
                         });
                     }
                 })
@@ -429,9 +749,16 @@ fn main() {
             )?;
             let local_dictionary =
                 LocalDictionary::open(&local_path, &acronym_path).map_err(std::io::Error::other)?;
+            let pronunciation_path = app.path().resolve(
+                "resources/pronunciations.sqlite3",
+                tauri::path::BaseDirectory::Resource,
+            )?;
+            tts::g2p::set_database(&pronunciation_path);
+            let model_dir = model_store::directory(&directory);
             app.manage(AppState {
                 dictionary,
                 local_dictionary: Mutex::new(local_dictionary),
+                pronunciations: Mutex::new(Pronunciations::open(&pronunciation_path)),
                 reader: SelectionReader::new(),
                 storage: Mutex::new(storage),
                 settings: Mutex::new(settings.clone()),
@@ -439,19 +766,30 @@ fn main() {
                 motion: AtomicU64::new(0),
                 shortcut_error: Mutex::new(None),
                 capturing: AtomicBool::new(false),
+                tts: create_tts(app.handle(), model_dir.clone(), &settings),
+                model_dir,
+                install: Mutex::new(None),
             });
             app.manage(Hooks::new(app.handle().clone(), settings.middle_click));
-            if settings.keyboard_enabled {
-                if let Err(error) = app.global_shortcut().register(settings.shortcut.as_str()) {
-                    *app.state::<AppState>().shortcut_error.lock().unwrap() = Some(format!(
-                        "Could not register {}: {error}. Choose another shortcut in Settings.",
-                        settings.shortcut
-                    ));
-                }
+            let errors: Vec<String> = settings::bindings(&settings)
+                .into_iter()
+                .filter_map(|binding| {
+                    app.global_shortcut()
+                        .register(binding.as_str())
+                        .err()
+                        .map(|error| format!("Could not register {binding}: {error}."))
+                })
+                .collect();
+            if !errors.is_empty() {
+                *app.state::<AppState>().shortcut_error.lock().unwrap() = Some(format!(
+                    "{} Choose another shortcut in Settings.",
+                    errors.join(" ")
+                ));
             }
             let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+            let stop_item = MenuItem::with_id(app, "stop", "Stop reading", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit DIO", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&settings_item, &quit_item])?;
+            let menu = Menu::with_items(app, &[&settings_item, &stop_item, &quit_item])?;
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("DIO Dictionary")
@@ -460,7 +798,11 @@ fn main() {
                     "settings" => {
                         let _ = open_settings(app);
                     }
-                    "quit" => app.exit(0),
+                    "stop" => shared(app).tts.stop(None),
+                    "quit" => {
+                        shared(app).tts.stop(None);
+                        app.exit(0)
+                    }
                     _ => {}
                 })
                 .build(app)?;
@@ -480,7 +822,17 @@ fn main() {
             shortcut_error,
             hook_error,
             update_settings,
-            pronunciation
+            pronunciation,
+            show_settings,
+            tts_state,
+            tts_voices,
+            tts_speak,
+            tts_pause,
+            tts_resume,
+            tts_stop,
+            tts_install,
+            tts_cancel_install,
+            tts_remove
         ])
         .run(tauri::generate_context!())
         .expect("failed to run DIO");
@@ -489,6 +841,24 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capture_failures_explain_what_to_do() {
+        assert!(capture_message("Copy timed out.").contains("didn't copy"));
+        assert!(
+            capture_message("Clipboard formats cannot be safely preserved.").contains("screenshot")
+        );
+        assert!(capture_message("Copy input was blocked.").contains("administrator"));
+        assert_eq!(
+            capture_message("Select at most 2000 characters to read aloud."),
+            "Select at most 2000 characters to read aloud."
+        );
+        assert!(capture_message("DIO can't read selections in the classic console. Use Windows Terminal or select the text elsewhere.").contains("Windows Terminal"));
+        assert_eq!(
+            capture_message("Accessibility timed out."),
+            "Couldn't capture the selected text. Try highlighting it again."
+        );
+    }
 
     #[test]
     fn name_aliases_use_one_saved_key() {

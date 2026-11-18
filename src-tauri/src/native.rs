@@ -1,4 +1,4 @@
-use crate::model::{normalize, Rect, Selection};
+use crate::model::{normalize_with, Limits, Rect, Selection};
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -28,8 +28,11 @@ use windows::{
 
 struct Request {
     foreground: isize,
+    limits: Limits,
     reply: oneshot::Sender<Result<Selection, String>>,
 }
+/// UI Automation saw a terminal control, so the clipboard fallback must not send Ctrl+C.
+const TERMINAL: &str = "The terminal does not expose its selection.";
 pub struct SelectionReader {
     sender: SyncSender<Request>,
 }
@@ -49,7 +52,9 @@ impl SelectionReader {
                 let result = automation
                     .as_ref()
                     .map_err(|e| format!("Accessibility is unavailable: {e}"))
-                    .and_then(|automation| read_selection(automation, request.foreground));
+                    .and_then(|automation| {
+                        read_selection(automation, request.foreground, request.limits)
+                    });
                 let _ = request.reply.send(result);
             }
             if initialized {
@@ -58,9 +63,18 @@ impl SelectionReader {
         });
         Self { sender }
     }
-    pub async fn read(&self, foreground: isize, owner: isize) -> Result<Selection, String> {
+    pub async fn read(
+        &self,
+        foreground: isize,
+        owner: isize,
+        limits: Limits,
+    ) -> Result<Selection, String> {
         let (reply, result) = oneshot::channel();
-        let accessibility = match self.sender.try_send(Request { foreground, reply }) {
+        let accessibility = match self.sender.try_send(Request {
+            foreground,
+            limits,
+            reply,
+        }) {
             Ok(()) => {
                 match tokio::time::timeout(std::time::Duration::from_millis(1200), result).await {
                     Ok(Ok(result)) => result,
@@ -75,17 +89,15 @@ impl SelectionReader {
                 eprintln!("DIO capture: UI Automation succeeded");
                 Ok(selection)
             }
-            Err(error)
-                if error == "DIO does not read password fields."
-                    || error == "Copy is disabled in terminal windows." =>
-            {
+            Err(error) if error == "DIO does not read password fields." => {
                 eprintln!("DIO capture: UI Automation failed: {error}; clipboard skipped");
                 Err(error)
             }
             Err(error) => {
+                let terminal = error == TERMINAL;
                 eprintln!("DIO capture: UI Automation failed: {error}");
                 let result = tokio::task::spawn_blocking(move || {
-                    crate::clipboard::capture(foreground, owner)
+                    crate::clipboard::capture(foreground, owner, limits, terminal)
                 })
                 .await
                 .map_err(|e| e.to_string())?;
@@ -101,7 +113,11 @@ impl SelectionReader {
 pub fn foreground() -> isize {
     unsafe { GetForegroundWindow().0 as isize }
 }
-unsafe fn read_selection(automation: &IUIAutomation, original: isize) -> Result<Selection, String> {
+unsafe fn read_selection(
+    automation: &IUIAutomation,
+    original: isize,
+    limits: Limits,
+) -> Result<Selection, String> {
     if foreground() != original {
         return Err("The active application changed. Select the word again.".into());
     }
@@ -141,9 +157,12 @@ unsafe fn read_selection(automation: &IUIAutomation, original: isize) -> Result<
                 }
                 if count == 1 {
                     let range = ranges.GetElement(0).map_err(|e| e.to_string())?;
-                    let text = range.GetText(258).map_err(|e| e.to_string())?.to_string();
+                    let text = range
+                        .GetText(limits.max_chars.saturating_mul(2).saturating_add(2) as i32)
+                        .map_err(|e| e.to_string())?
+                        .to_string();
                     if !text.trim().is_empty() {
-                        let text = normalize(&text)?;
+                        let text = normalize_with(&text, limits)?;
                         let bounds = range.GetBoundingRectangles().ok().and_then(|array| {
                             use windows::Win32::System::Ole::{
                                 SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound,
@@ -187,7 +206,7 @@ unsafe fn read_selection(automation: &IUIAutomation, original: isize) -> Result<
             }
         }
         if terminal {
-            return Err("Copy is disabled in terminal windows.".into());
+            return Err(TERMINAL.into());
         }
         element = match walker.GetParentElement(&element) {
             Ok(parent) => parent,

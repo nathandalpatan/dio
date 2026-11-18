@@ -30,7 +30,7 @@
   },
   "bundle": {
     "active": true,
-    "resources": ["resources/english.sqlite3", "resources/acronyms.sqlite3", "resources/DICTIONARY-LICENSE.md", "resources/ACRONYM-LICENSE.md"],
+    "resources": ["resources/english.sqlite3", "resources/acronyms.sqlite3", "resources/pronunciations.sqlite3", "resources/onnxruntime.dll", "resources/DICTIONARY-LICENSE.md", "resources/ACRONYM-LICENSE.md", "resources/PRONUNCIATION-LICENSE.md", "resources/SPEECH-LICENSE.md", "resources/ONNXRUNTIME-LICENSE.txt", "resources/ONNXRUNTIME-THIRD-PARTY-NOTICES.txt"],
     "targets": [
       "nsis"
     ],
