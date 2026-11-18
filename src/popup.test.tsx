@@ -88,14 +88,101 @@ describe('popup', () => {
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
     send({ requestId: 1, status: 'ready', entries: [entry], direction: 'nw', canBack: true });
     expect(container.querySelector('.reduced-motion')).toBeTruthy();
-    fireEvent.click(screen.getByText('↖ More'));
+    fireEvent.click(screen.getByText('More ↖'));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('expand', { expanded: true, reducedMotion: false }));
     send({ requestId: 1, status: 'ready', entries: [entry], direction: 'nw', expanded: true, canBack: true });
-    expect(screen.getByText('↘ Less')).toBeTruthy();
+    expect(screen.getByText('Less ↘')).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Backspace' });
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(api.invoke).toHaveBeenCalledWith('back', undefined);
     expect(api.invoke).toHaveBeenCalledWith('close_popup', undefined);
+  });
+
+  it('shows sourced IPA in the preferred accent with every variant under More', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['settings-changed']).toBeDefined());
+    const pronunciations = [
+      { ipa: '/ˌsɛɹ.ənˈdɪp.ɪ.ti/', dialect: 'uk', source: 'wiktionary' },
+      { ipa: '/ˌsɛɹ.ənˈdɪp.ə.t̬i/', dialect: 'us', source: 'dictionary' },
+    ];
+    send({ requestId: 1, status: 'ready', entries: [entry], pronunciations });
+    expect(screen.getByText('/ˌsɛɹ.ənˈdɪp.ə.t̬i/')).toBeTruthy();
+    expect(screen.getByText('US')).toBeTruthy();
+    act(() => api.listeners['settings-changed']({ payload: { ...settings, accent: 'uk' } }));
+    expect(screen.getByText('/ˌsɛɹ.ənˈdɪp.ɪ.ti/').getAttribute('title')).toBe('Wiktionary');
+    send({ requestId: 1, status: 'ready', entries: [entry], pronunciations, expanded: true });
+    expect(screen.getByText('Pronunciation')).toBeTruthy();
+    expect(screen.getByText('Free Dictionary API')).toBeTruthy();
+  });
+
+  it('marks generated IPA and hides the row when nothing is known', async () => {
+    const { container } = render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    send({ requestId: 1, status: 'ready', entries: [entry], pronunciations: [{ ipa: '/blɔɹp/', dialect: 'us', source: 'generated' }] });
+    expect(screen.getByLabelText('Generated pronunciation')).toBeTruthy();
+    expect(screen.getByText('/blɔɹp/').closest('[title]')?.getAttribute('title')).toMatch(/not a dictionary transcription/);
+    send({ requestId: 2, status: 'ready', entries: [entry], pronunciations: [] });
+    expect(container.querySelector('.ipa')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Play pronunciation' })).toBeNull();
+  });
+
+  it('pronounces with a matching recording first, otherwise with Kokoro', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['tts-state']).toBeDefined());
+    act(() => api.listeners['tts-state']({ payload: { status: 'ready', progress: 0, message: '', owner: '' } }));
+    send({ requestId: 1, status: 'ready', entries: [entry] });
+    fireEvent.click(screen.getByRole('button', { name: 'Play pronunciation' }));
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('tts_speak', { text: 'serendipity', owner: 'word' }));
+    const recorded = { ...entry, phonetics: [{ text: '', audio: 'https://api.dictionaryapi.dev/media/serendipity-us.mp3', sourceUrl: '' }] };
+    send({ requestId: 2, status: 'ready', entries: [recorded] });
+    fireEvent.click(screen.getByRole('button', { name: 'Play pronunciation' }));
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('pronunciation', { url: recorded.phonetics[0].audio }));
+  });
+
+  it('shows speech status and playback controls in the footer', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['tts-state']).toBeDefined());
+    const speech = (payload: object) => act(() => api.listeners['tts-state']({ payload: { progress: 0, message: '', owner: '', ...payload } }));
+    send({ requestId: 1, status: 'ready', entries: [entry] });
+    speech({ status: 'notInstalled' });
+    expect(screen.getByText('Voice not installed')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Read definition aloud' })).toBeNull();
+    speech({ status: 'downloading', progress: 0.42 });
+    expect(screen.getByText('Downloading voice 42%')).toBeTruthy();
+    speech({ status: 'ready' });
+    expect(screen.getByText('Kokoro voice · US English')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Read definition aloud' }));
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('tts_speak', { text: 'serendipity. A happy discovery.', owner: 'popup' }));
+    speech({ status: 'playing', owner: 'popup' });
+    fireEvent.click(screen.getByRole('button', { name: 'Pause speech' }));
+    expect(api.invoke).toHaveBeenCalledWith('tts_pause', undefined);
+    speech({ status: 'paused', owner: 'popup' });
+    fireEvent.click(screen.getByRole('button', { name: 'Resume speech' }));
+    expect(api.invoke).toHaveBeenCalledWith('tts_resume', undefined);
+    fireEvent.click(screen.getByRole('button', { name: 'Stop speech' }));
+    expect(api.invoke).toHaveBeenCalledWith('tts_stop', undefined);
+    speech({ status: 'error', message: 'No audio output device is available.' });
+    expect(screen.getByRole('status').textContent).toBe('No audio output device is available.');
+    fireEvent.click(screen.getByRole('button', { name: 'Speech settings' }));
+    expect(api.invoke).toHaveBeenCalledWith('show_settings', undefined);
+  });
+
+  it('switches the Kokoro voice from the footer', async () => {
+    api.invoke.mockImplementation((command: string) => Promise.resolve(({ popup_state: initial, get_settings: { ...settings, voice: 'af_heart' }, tts_state: { status: 'ready', progress: 0, message: '', owner: '' }, tts_voices: [{ id: 'af_heart', name: 'Heart', accent: 'us' }, { id: 'bf_emma', name: 'Emma', accent: 'uk' }] } as Record<string, unknown>)[command]));
+    render(<PopupView />);
+    const picker = await screen.findByRole('combobox', { name: 'Voice' }) as HTMLSelectElement;
+    expect(picker.selectedOptions[0].textContent).toBe('Kokoro Heart · US English');
+    fireEvent.change(picker, { target: { value: 'bf_emma' } });
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: { ...settings, voice: 'bf_emma' } }));
+  });
+
+  it('shows the selection being read aloud', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    send({ requestId: 3, status: 'reading', reading: 'The selected paragraph…' });
+    expect(screen.getByText('Reading selection aloud')).toBeTruthy();
+    expect(screen.getByText('The selected paragraph…')).toBeTruthy();
+    expect(screen.queryByText(/More/)).toBeNull();
   });
 
   it('keeps dismissal available when a lookup fails', async () => {
@@ -107,5 +194,39 @@ describe('popup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(api.invoke).toHaveBeenCalledWith('back', undefined);
     expect(api.invoke).toHaveBeenCalledWith('close_popup', undefined);
+  });
+});
+
+describe('settings', () => {
+  const speechSettings = { ...settings, accent: 'us', ttsEnabled: true, voice: 'af_heart', speed: 1, volume: 1, readerEnabled: true, readerShortcut: 'Ctrl+Alt+R', readerMaxChars: 2000 };
+  const voices = [{ id: 'af_heart', name: 'Heart', accent: 'us' }, { id: 'bf_emma', name: 'Emma', accent: 'uk' }];
+  const open = (speech: object) => {
+    window.history.replaceState(null, '', '/?settings');
+    api.invoke.mockImplementation((command: string) => Promise.resolve(({ get_settings: speechSettings, saved_words: [], tts_voices: voices, tts_state: { status: 'notInstalled', progress: 0, message: '', owner: '', ...speech } } as Record<string, unknown>)[command]));
+    return render(<AppView />);
+  };
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('installs the voice and saves speech preferences', async () => {
+    open({});
+    fireEvent.click(await screen.findByRole('button', { name: 'Install voice' }));
+    expect(api.invoke).toHaveBeenCalledWith('tts_install', undefined);
+    fireEvent.change(screen.getByLabelText(/^Voice/), { target: { value: 'bf_emma' } });
+    fireEvent.change(screen.getByLabelText(/^Accent/), { target: { value: 'uk' } });
+    fireEvent.focus(screen.getByLabelText('Read-aloud shortcut'));
+    fireEvent.keyDown(screen.getByLabelText('Read-aloud shortcut'), { key: 'q', ctrlKey: true, shiftKey: true });
+    fireEvent.click(screen.getByText('Save settings'));
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: { ...speechSettings, voice: 'bf_emma', accent: 'uk', readerShortcut: 'Ctrl+Shift+Q' } }));
+  });
+
+  it('offers removal and cancellation for installed or downloading voices', async () => {
+    const { unmount } = open({ status: 'ready' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove voice' }));
+    expect(api.invoke).toHaveBeenCalledWith('tts_remove', undefined);
+    unmount();
+    open({ status: 'downloading', progress: 0.5 });
+    expect(await screen.findByText('Downloading… 50%')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(api.invoke).toHaveBeenCalledWith('tts_cancel_install', undefined);
   });
 });
