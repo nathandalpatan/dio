@@ -105,6 +105,19 @@ fn resize_from_corner(start: Bounds, work: Bounds, size: (u32, u32), direction: 
     }
 }
 
+const EXPANDED: (f64, f64) = (720.0, 530.0);
+
+fn logical_size(expanded: bool, size: &str) -> (f64, f64) {
+    if expanded {
+        return EXPANDED;
+    }
+    match size {
+        "small" => (460.0, 410.0),
+        "large" => (600.0, 520.0),
+        _ => (530.0, 465.0),
+    }
+}
+
 pub fn emit(app: &AppHandle, state: &PopupState) {
     let _ = app.emit("popup-state", state);
 }
@@ -131,15 +144,7 @@ fn target(
         .or(window.current_monitor().map_err(|e| e.to_string())?)
         .ok_or("No display is available.")?;
     let scale = monitor.scale_factor();
-    let logical = if expanded {
-        (440.0, 560.0)
-    } else {
-        match size {
-            "small" => (300.0, 176.0),
-            "large" => (390.0, 230.0),
-            _ => (340.0, 200.0),
-        }
-    };
+    let logical = logical_size(expanded, size);
     let area = monitor.work_area();
     let work = Bounds {
         x: area.position.x,
@@ -147,7 +152,7 @@ fn target(
         width: area.size.width,
         height: area.size.height,
     };
-    let (_, direction) = place(anchor, work, physical_size((440.0, 560.0), scale));
+    let (_, direction) = place(anchor, work, physical_size(EXPANDED, scale));
     let bounds = place_in_direction(anchor, work, physical_size(logical, scale), &direction);
     Ok((window, bounds, direction))
 }
@@ -205,15 +210,7 @@ pub async fn animate_bounds(
         width: area.size.width,
         height: area.size.height,
     };
-    let logical = if expanded {
-        (440.0, 560.0)
-    } else {
-        match size {
-            "small" => (300.0, 176.0),
-            "large" => (390.0, 230.0),
-            _ => (340.0, 200.0),
-        }
-    };
+    let logical = logical_size(expanded, size);
     if reduced_motion {
         let position = window.outer_position().map_err(|e| e.to_string())?;
         let dimensions = window.outer_size().map_err(|e| e.to_string())?;
@@ -320,7 +317,7 @@ mod tests {
                 height: 20.0,
             },
             work,
-            (440, 560),
+            (720, 530),
         );
         assert_eq!(direction, "nw");
         assert!(bounds.x >= -1920 && bounds.x + bounds.width as i32 <= 0);
@@ -336,7 +333,7 @@ mod tests {
                 width: 300,
                 height: 200,
             },
-            (440, 560),
+            (720, 530),
         );
         assert_eq!((bounds.width, bounds.height), (300, 200));
     }
@@ -356,8 +353,8 @@ mod tests {
             width: 2400,
             height: 1350,
         };
-        let size = physical_size((440.0, 560.0), 1.5);
-        assert_eq!(size, (660, 840));
+        let size = physical_size(EXPANDED, 1.5);
+        assert_eq!(size, (1080, 795));
         let (bounds, _) = place(
             Rect {
                 x: -250.0,
@@ -384,11 +381,11 @@ mod tests {
             let compact = Bounds {
                 x: 600,
                 y: 400,
-                width: 340,
-                height: 200,
+                width: 530,
+                height: 465,
             };
-            let expanded = resize_from_corner(compact, work, (440, 560), direction);
-            let collapsed = resize_from_corner(expanded, work, (340, 200), direction);
+            let expanded = resize_from_corner(compact, work, (720, 530), direction);
+            let collapsed = resize_from_corner(expanded, work, (530, 465), direction);
             assert_eq!(collapsed, compact, "{direction}");
             assert_eq!(
                 if direction.ends_with('e') {
@@ -424,24 +421,24 @@ mod tests {
         let work = Bounds {
             x: 0,
             y: 0,
-            width: 1000,
-            height: 800,
+            width: 1600,
+            height: 1200,
         };
         let anchor = Rect {
-            x: 650.0,
-            y: 650.0,
+            x: 1200.0,
+            y: 1000.0,
             width: 20.0,
             height: 20.0,
         };
-        let (_, direction) = place(anchor, work, (440, 560));
+        let (_, direction) = place(anchor, work, (720, 530));
         assert_eq!(direction, "nw");
-        let compact = place_in_direction(anchor, work, (340, 200), &direction);
+        let compact = place_in_direction(anchor, work, (530, 465), &direction);
         assert_eq!(
             (
                 compact.x + compact.width as i32,
                 compact.y + compact.height as i32
             ),
-            (640, 640)
+            (1190, 990)
         );
     }
 }

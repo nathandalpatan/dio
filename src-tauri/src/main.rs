@@ -692,8 +692,8 @@ fn open_settings(app: &AppHandle) -> Result<(), String> {
             WebviewUrl::App("index.html?settings".into()),
         )
         .title("DIO Settings")
-        .inner_size(620.0, 640.0)
-        .min_inner_size(520.0, 450.0)
+        .inner_size(880.0, 600.0)
+        .min_inner_size(720.0, 480.0)
         .build()
         .map_err(|e| e.to_string())?;
     }
