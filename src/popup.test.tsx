@@ -83,6 +83,25 @@ describe('popup', () => {
     expect(screen.getByText('League of Legends: a video game.')).toBeTruthy();
   });
 
+  it('shows entry sections as tabs in the compact view', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry] });
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Definition', 'Synonyms']);
+    expect(screen.getByText('A happy discovery.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: 'Synonyms' }));
+    expect(screen.getByText('Alternatives based on this meaning')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'luck' }));
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('lookup', { word: 'luck' }));
+    const withExample = { ...entry, origin: 'Coined by Horace Walpole.', meanings: [{ ...entry.meanings[0], definitions: [{ ...entry.meanings[0].definitions[0], example: 'A fortunate find.' }] }] };
+    send({ requestId: 2, status: 'ready', query: 'serendipity', entries: [withExample] });
+    expect(screen.getByRole('tab', { name: 'Definition' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Examples' }));
+    expect(screen.getByText('A fortunate find.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: 'Related' }));
+    expect(screen.getByText('Origin')).toBeTruthy();
+  });
+
   it('uses the actual expansion direction and handles keyboard dismissal', async () => {
     const { container } = render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
@@ -209,23 +228,40 @@ describe('settings', () => {
 
   it('installs the voice and saves speech preferences', async () => {
     open({});
-    fireEvent.click(await screen.findByRole('button', { name: 'Install voice' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Pronunciation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Install voice' }));
     expect(api.invoke).toHaveBeenCalledWith('tts_install', undefined);
     fireEvent.change(screen.getByLabelText(/^Voice/), { target: { value: 'bf_emma' } });
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: { ...speechSettings, voice: 'bf_emma' } }));
     fireEvent.change(screen.getByLabelText(/^Accent/), { target: { value: 'uk' } });
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: { ...speechSettings, voice: 'bf_emma', accent: 'uk' } }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Shortcuts' }));
     fireEvent.focus(screen.getByLabelText('Read-aloud shortcut'));
     fireEvent.keyDown(screen.getByLabelText('Read-aloud shortcut'), { key: 'q', ctrlKey: true, shiftKey: true });
-    fireEvent.click(screen.getByText('Save settings'));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: { ...speechSettings, voice: 'bf_emma', accent: 'uk', readerShortcut: 'Ctrl+Shift+Q' } }));
+    expect(screen.queryByText('Save settings')).toBeNull();
+  });
+
+  it('reverts a change the backend rejects', async () => {
+    window.history.replaceState(null, '', '/?settings');
+    api.invoke.mockImplementation((command: string) => command === 'update_settings' ? Promise.reject('Could not register Ctrl+Alt+X: in use. The existing shortcut remains active.') : Promise.resolve(({ get_settings: speechSettings, saved_words: [], tts_voices: voices, tts_state: { status: 'ready', progress: 0, message: '', owner: '' } } as Record<string, unknown>)[command]));
+    render(<AppView />);
+    const startup = await screen.findByRole('switch', { name: 'Start DIO when I sign in' }) as HTMLInputElement;
+    fireEvent.click(startup);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toMatch(/existing shortcut remains active/);
+    expect(startup.checked).toBe(false);
   });
 
   it('offers removal and cancellation for installed or downloading voices', async () => {
     const { unmount } = open({ status: 'ready' });
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove voice' }));
+    fireEvent.click(await screen.findByRole('tab', { name: 'Pronunciation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove voice' }));
     expect(api.invoke).toHaveBeenCalledWith('tts_remove', undefined);
     unmount();
     open({ status: 'downloading', progress: 0.5 });
-    expect(await screen.findByText('Downloading… 50%')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('tab', { name: 'Pronunciation' }));
+    expect(screen.getByText('Downloading… 50%')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(api.invoke).toHaveBeenCalledWith('tts_cancel_install', undefined);
   });

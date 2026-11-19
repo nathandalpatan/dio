@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import '@fontsource/eb-garamond/400.css';
-import '@fontsource/eb-garamond/400-italic.css';
-import '@fontsource/eb-garamond/500.css';
-import '@fontsource/eb-garamond/600.css';
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
+import '@fontsource/source-serif-4/400.css';
+import '@fontsource/source-serif-4/400-italic.css';
+import '@fontsource/source-serif-4/600.css';
+import '@fontsource/source-serif-4/700.css';
 import './style.css';
 
 type License = { name: string; url: string };
@@ -43,8 +46,20 @@ const paths: Record<string, string> = {
   stop: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M9.5 9.5h5v5h-5z',
   sliders: 'M4 7h9 M17 7h3 M15 5v4 M4 17h3 M11 17h9 M9 15v4',
   chevron: 'M7 10l5 5 5-5',
+  back: 'M19 12H5 M11 6l-6 6 6 6',
+  close: 'M6 6l12 12 M18 6L6 18',
+  star: 'M12 3.5l2.6 5.3 5.9.9-4.25 4.1 1 5.8L12 16.9l-5.25 2.7 1-5.8L3.5 9.7l5.9-.9z',
+  layers: 'M12 4l8 4-8 4-8-4z M4 12l8 4 8-4 M4 16l8 4 8-4',
+  book: 'M4 5.5c2.5-1 5.5-1 8 .5 2.5-1.5 5.5-1.5 8-.5v13c-2.5-1-5.5-1-8 .5-2.5-1.5-5.5-1.5-8-.5z M12 6v13',
+  swap: 'M5 8h14 M15 4l4 4-4 4 M19 16H5 M9 12l-4 4 4 4',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1 M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  sun: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z M12 3v2 M12 19v2 M3 12h2 M19 12h2 M5.6 5.6L7 7 M17 17l1.4 1.4 M5.6 18.4L7 17 M17 7l1.4-1.4',
+  keyboard: 'M3.5 7h17v10h-17z M7 10.5h1 M10.5 10.5h1 M14 10.5h1 M17 10.5h0 M8 14h8',
+  contrast: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z M12 3.5v17',
+  history: 'M4 12a8 8 0 1 0 2.3-5.6 M4 4.5v4h4 M12 8v4l3 2',
+  database: 'M5 6c0-1.4 3.1-2.5 7-2.5s7 1.1 7 2.5-3.1 2.5-7 2.5S5 7.4 5 6z M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6 M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5',
 };
-const Icon = ({ name }: { name: string }) => <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>;
+const Icon = ({ name, filled }: { name: string; filled?: boolean }) => <svg viewBox="0 0 24 24" width="18" height="18" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>;
 const messageFor: Record<string, string> = {
   idle: 'Highlight text and press Ctrl+Alt+D.',
   loading: 'Looking up definition…',
@@ -59,6 +74,21 @@ const opposite: Record<string, string> = { se: '↖', sw: '↗', ne: '↙', nw: 
 const call = <T,>(command: string, args?: Record<string, unknown>) => invoke<T>(command, args);
 const asError = (error: unknown) => typeof error === 'string' ? error : String(error);
 const safeUrl = (address: string) => { try { const url = new URL(address); return url.protocol === 'https:' ? url.href : null; } catch { return null; } };
+const unique = (items: string[]) => [...new Set(items.filter(Boolean))];
+
+type Tab = 'definition' | 'examples' | 'synonyms' | 'related';
+
+/** Keyboard switching for a tablist: arrow keys move between tabs and wrap around. */
+function tabKeys<T extends string>(ids: T[], current: T, select: (id: T) => void, vertical = false) {
+  return (event: React.KeyboardEvent) => {
+    const step = event.key === (vertical ? 'ArrowDown' : 'ArrowRight') ? 1 : event.key === (vertical ? 'ArrowUp' : 'ArrowLeft') ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const next = ids[(ids.indexOf(current) + step + ids.length) % ids.length];
+    select(next);
+    (event.currentTarget.querySelector(`[data-tab="${next}"]`) as HTMLElement | null)?.focus();
+  };
+}
 
 export function PopupView() {
   const [state, setState] = useState<PopupState>(empty);
@@ -66,6 +96,7 @@ export function PopupView() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [speech, setSpeech] = useState<TtsState>(idleSpeech);
   const [voices, setVoices] = useState<Voice[]>([]);
+  const [tab, setTab] = useState<Tab>('definition');
   useEffect(() => {
     let eventSeen = false;
     let speechSeen = false;
@@ -83,6 +114,7 @@ export function PopupView() {
     window.addEventListener('keydown', key);
     return () => { window.removeEventListener('keydown', key); void subscription.then(unlisten => unlisten()); void preferences.then(unlisten => unlisten()); void speechEvents.then(unlisten => unlisten()); };
   }, []);
+  useEffect(() => setTab('definition'), [state.requestId]);
   const entry = state.entries[0];
   const word = entry?.word || state.query;
   const primary = entry?.meanings.find(meaning => meaning.definitions.length > 0);
@@ -118,40 +150,74 @@ export function PopupView() {
   const save = async () => { try { await call('save_word', { save: !state.saved }); } catch (e) { setError(asError(e)); } };
   const control = (command: string) => void call(command).catch(e => setError(asError(e)));
   const readable = state.status === 'ready' && entry ? [word, primary?.definitions[0]?.definition].filter(Boolean).join('. ') : '';
-  const related = (key: 'synonyms' | 'antonyms') => [...new Set(entry?.meanings.flatMap(meaning => meaning[key].concat(meaning.definitions.flatMap(definition => definition[key]))) || [])];
+  const related = (key: 'synonyms' | 'antonyms') => unique(entry?.meanings.flatMap(meaning => meaning[key].concat(meaning.definitions.flatMap(definition => definition[key]))) || []);
   const chooseVoice = async (next: string) => { if (!settings) return; setError(''); try { await call('update_settings', { next: { ...settings, voice: next } }); } catch (e) { setError(asError(e)); } };
   const picker = settings?.ttsEnabled !== false && voices.length > 0 && !busy.includes(speech.status);
+
+  const synonyms = related('synonyms');
+  const antonyms = related('antonyms');
+  const examples = unique(entry?.meanings.flatMap(meaning => meaning.definitions.map(definition => definition.example)) || []);
+  const hasSources = !!entry && (entry.sourceUrls.length > 0 || !!entry.license || !!audio?.license || !!audio?.sourceUrl);
+  const links = (items: string[]) => items.map((item, i) => <React.Fragment key={item}>{i > 0 && ', '}<button className="link" onClick={() => void more(item)}>{item}</button></React.Fragment>);
+  const variantList = <ul className="variants">{variants.map(item => <li key={`${item.dialect}${item.ipa}`}><span className="accent">{item.dialect ? item.dialect.toUpperCase() : '—'}</span><span className="ipa">{item.source === 'generated' && '≈'}{item.ipa}</span><span className="variant-source">{sourceName[item.source]}</span></li>)}</ul>;
+  const sources = entry && <p className="source">Source: {entry.sourceUrls.map(url => safeUrl(url) && <a key={url} href={safeUrl(url)!} target="_blank" rel="noreferrer">Entry source</a>)}{entry.license && <> · {safeUrl(entry.license.url) ? <a href={safeUrl(entry.license.url)!} target="_blank" rel="noreferrer">{entry.license.name}</a> : entry.license.name}</>}{audio?.sourceUrl && safeUrl(audio.sourceUrl) && <> · <a href={safeUrl(audio.sourceUrl)!} target="_blank" rel="noreferrer">Audio source</a></>}{audio?.license && <> · Audio: {safeUrl(audio.license.url) ? <a href={safeUrl(audio.license.url)!} target="_blank" rel="noreferrer">{audio.license.name}</a> : audio.license.name}</>}</p>;
+  const relatedRows = [
+    entry?.origin && { id: 'origin', label: 'Origin', icon: 'book', body: <p>{entry.origin}</p> },
+    antonyms.length > 0 && { id: 'antonyms', label: 'Antonyms', icon: 'swap', body: <p>{links(antonyms)}</p> },
+    variants.length > 1 && { id: 'pronunciation', label: 'Pronunciation', icon: 'speaker', body: variantList },
+    hasSources && { id: 'sources', label: 'Sources', icon: 'link', body: sources },
+  ].filter(Boolean) as { id: string; label: string; icon: string; body: React.ReactNode }[];
+  const tabs = ([['definition', 'Definition', true], ['examples', 'Examples', examples.length > 0], ['synonyms', 'Synonyms', synonyms.length > 0], ['related', 'Related', relatedRows.length > 0]] as [Tab, string, boolean][]).filter(([, , shown]) => shown);
+  const active = tabs.some(([id]) => id === tab) ? tab : 'definition';
+
+  const panel = active === 'examples' ? <>
+      <h2>Examples in context</h2>
+      {examples.map(example => <blockquote key={example}>{example}</blockquote>)}
+    </> : active === 'synonyms' ? <>
+      <h2>Synonyms</h2>
+      <p className="subtitle">Alternatives based on this meaning</p>
+      <ul className="word-columns">{synonyms.map(item => <li key={item}><button className="link" onClick={() => void more(item)}>{item}</button></li>)}</ul>
+    </> : active === 'related' ? relatedRows.map(row => <details key={row.id} className="disclosure"><summary><Icon name={row.icon}/><span>{row.label}</span><Icon name="chevron"/></summary><div className="disclosure-body">{row.body}</div></details>)
+    : <>
+      {primary && <div className="sense-card"><span className="part">{primary.partOfSpeech}</span><p>{primary.definitions[0]?.definition}</p></div>}
+      {synonyms.length > 0 && <details className="disclosure" open><summary><Icon name="layers"/><span>Synonyms</span><Icon name="chevron"/></summary><p className="disclosure-body muted">{synonyms.slice(0, 6).join(', ')}</p></details>}
+    </>;
+
   return <main className={`popup ${state.expanded ? 'expanded' : ''} theme-${settings?.theme || 'system'} ${settings?.reducedMotion ? 'reduced-motion' : ''}`}>
     <header className="popup-header" data-tauri-drag-region>
-      <span className="header-start" data-tauri-drag-region>
-        <button className="icon-button" aria-label="Back" onClick={() => void call('back').catch(e => setError(asError(e)))}>←</button>
-        <span className="header-divider" aria-hidden="true"/>
-        <span className="brand" data-tauri-drag-region>DIO</span>
-      </span>
-      <button className="icon-button" aria-label="Close" onClick={() => void call('close_popup')}>×</button>
+      <button className="icon-button" aria-label="Back" onClick={() => void call('back').catch(e => setError(asError(e)))}><Icon name="back"/></button>
+      <span className="brand" data-tauri-drag-region>DIO</span>
+      <button className="icon-button" aria-label="Close" onClick={() => void call('close_popup')}><Icon name="close"/></button>
     </header>
     <div className="content">
       {state.status === 'ready' && entry ? <>
-        <div className="word-row"><h1>{entry.word || state.query}</h1><button className="save-button" onClick={() => void save()} aria-label={state.saved ? 'Remove saved word' : 'Save word'}>{state.saved ? '★' : '☆'}</button></div>
+        <div className="word-row"><h1>{entry.word || state.query}</h1><button className={`save-button ${state.saved ? 'saved' : ''}`} onClick={() => void save()} aria-label={state.saved ? 'Remove saved word' : 'Save word'}><Icon name="star" filled={state.saved}/></button></div>
         <div className="phonetic-row">
+          {state.expanded && primary && <span className="part">{primary.partOfSpeech}</span>}
           {sourced ? <span className="ipa" title={sourceName[sourced.source]}>{sourced.dialect && <span className="accent">{sourced.dialect.toUpperCase()}</span>}{sourced.source === 'generated' && <span className="approximate" aria-label="Generated pronunciation">≈</span>}{sourced.ipa}</span> : fallbackPhonetic && <span className="ipa">{fallbackPhonetic}</span>}
           {(audio || canSpeak) && <button className="audio-button" onClick={() => void pronounce()} aria-label="Play pronunciation" title={accentAudio || !canSpeak ? 'Play recorded pronunciation' : 'Pronounce with Kokoro'}><Icon name="speaker"/></button>}
         </div>
-        {!state.expanded && primary && <section className="primary"><span className="part">{primary.partOfSpeech}</span><p>{primary.definitions[0]?.definition}</p></section>}
         {state.stale && <p className="notice">{state.message}</p>}
-        {state.expanded && <div className="details">
+        {state.expanded ? <div className="details">
           {entry.meanings.map((meaning, index) => meaning.definitions.length > 0 && <section key={`${meaning.partOfSpeech}-${index}`}><h2>{meaning.partOfSpeech}</h2><ol>{meaning.definitions.map((definition, i) => <li key={i}>{definition.definition}{definition.example && <p className="example">“{definition.example}”</p>}</li>)}</ol></section>)}
-          {(['synonyms', 'antonyms'] as const).map(key => { const words = related(key); return words.length > 0 && <section className="related" key={key}><h2>{key === 'synonyms' ? 'Synonyms' : 'Antonyms'}</h2><p>{words.map((item, i) => <React.Fragment key={item}>{i > 0 && ', '}<button onClick={() => void more(item)}>{item}</button></React.Fragment>)}</p></section>; })}
-          {variants.length > 1 && <section><h2>Pronunciation</h2><ul className="variants">{variants.map(item => <li key={`${item.dialect}${item.ipa}`}><span className="accent">{item.dialect ? item.dialect.toUpperCase() : '—'}</span><span className="ipa">{item.source === 'generated' && '≈'}{item.ipa}</span><span className="variant-source">{sourceName[item.source]}</span></li>)}</ul></section>}
+          {synonyms.length > 0 && <section className="related"><h2>Synonyms</h2><p>{links(synonyms)}</p></section>}
+          {antonyms.length > 0 && <section className="related"><h2>Antonyms</h2><p>{links(antonyms)}</p></section>}
+          {variants.length > 1 && <section><h2>Pronunciation</h2>{variantList}</section>}
           {entry.origin && <section><h2>Origin</h2><p>{entry.origin}</p></section>}
-          {(entry.sourceUrls.length > 0 || entry.license || audio?.license || audio?.sourceUrl) && <footer className="source">Source: {entry.sourceUrls.map(url => safeUrl(url) && <a key={url} href={safeUrl(url)!} target="_blank" rel="noreferrer">Entry source</a>)}{entry.license && <> · {safeUrl(entry.license.url) ? <a href={safeUrl(entry.license.url)!} target="_blank" rel="noreferrer">{entry.license.name}</a> : entry.license.name}</>}{audio?.sourceUrl && safeUrl(audio.sourceUrl) && <> · <a href={safeUrl(audio.sourceUrl)!} target="_blank" rel="noreferrer">Audio source</a></>}{audio?.license && <> · Audio: {safeUrl(audio.license.url) ? <a href={safeUrl(audio.license.url)!} target="_blank" rel="noreferrer">{audio.license.name}</a> : audio.license.name}</>}</footer>}
-        </div>}
+          {hasSources && <footer>{sources}</footer>}
+        </div> : <>
+          <div className="tabs" role="tablist" aria-label="Entry sections" onKeyDown={tabKeys(tabs.map(([id]) => id), active, setTab)}>
+            {tabs.map(([id, label]) => <button key={id} role="tab" data-tab={id} id={`tab-${id}`} aria-controls="tab-panel" aria-selected={active === id} tabIndex={active === id ? 0 : -1} onClick={() => setTab(id)}>{label}</button>)}
+          </div>
+          <div className={`tab-panel panel-${active}`} id="tab-panel" role="tabpanel" aria-labelledby={`tab-${active}`}>{panel}</div>
+        </>}
       </> : state.status === 'reading' ? <div className="reading"><p className="reading-label">Reading selection aloud</p><blockquote>{state.reading}</blockquote></div>
-        : <div className="status"><span>{state.status === 'loading' ? '◌' : '⌕'}</span><p>{state.message || messageFor[state.status] || 'Choose a word to look up.'}</p></div>}
+        : <div className="status"><span className={state.status === 'loading' ? 'spinner' : ''} aria-hidden="true">{state.status === 'loading' ? '' : '⌕'}</span><p>{state.message || messageFor[state.status] || 'Choose a word to look up.'}</p></div>}
       {error && <p className="notice error" role="alert">{error}</p>}
     </div>
     <footer className="popup-footer">
       <span className="footer-start">
+        {settings?.ttsEnabled !== false && <Icon name="speaker"/>}
         {picker && <span className="voice-picker"><select aria-label="Voice" value={settings?.voice || 'af_heart'} onChange={e => void chooseVoice(e.target.value)}>{voices.map(item => <option key={item.id} value={item.id}>{`Kokoro ${item.name} · ${accentName[item.accent]}`}</option>)}</select><Icon name="chevron"/></span>}
         <span className={`speech-status ${speech.status === 'error' ? 'error' : ''}`} role="status">{picker || settings?.ttsEnabled === false ? '' : speechLabel(speech, voice)}</span>
       </span>
@@ -167,69 +233,125 @@ export function PopupView() {
   </main>;
 }
 
+type Section = 'general' | 'pronunciation' | 'shortcuts' | 'appearance' | 'saved' | 'data';
+const sections: { id: Section; label: string; icon: string; subtitle: string }[] = [
+  { id: 'general', label: 'General', icon: 'sun', subtitle: 'Core behaviour and startup options.' },
+  { id: 'pronunciation', label: 'Pronunciation', icon: 'speaker', subtitle: 'Voice, phonetics and speech playback.' },
+  { id: 'shortcuts', label: 'Shortcuts', icon: 'keyboard', subtitle: 'How DIO is activated from other apps.' },
+  { id: 'appearance', label: 'Appearance', icon: 'contrast', subtitle: 'Choose your preferred reading experience.' },
+  { id: 'saved', label: 'Saved words', icon: 'history', subtitle: 'Words you starred in the popup.' },
+  { id: 'data', label: 'Data', icon: 'database', subtitle: 'What DIO keeps on this computer.' },
+];
+
+function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return <label className="row"><span className="row-label">{label}{hint && <small>{hint}</small>}</span>{children}</label>;
+}
+function Switch({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return <Row label={label} hint={hint}><input type="checkbox" role="switch" className="switch" checked={checked} onChange={e => onChange(e.target.checked)}/></Row>;
+}
+
 function SettingsView() {
-  const [draft, setDraft] = useState<Settings | null>(null);
-  const [saved, setSaved] = useState<string[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const persisted = useRef<Settings | null>(null);
+  const [words, setWords] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [capturing, setCapturing] = useState<'' | 'shortcut' | 'readerShortcut'>('');
   const [speech, setSpeech] = useState<TtsState>(idleSpeech);
   const [voices, setVoices] = useState<Voice[]>([]);
+  const [section, setSection] = useState<Section>('general');
   useEffect(() => {
-    void call<Settings>('get_settings').then(setDraft).catch(e => setError(asError(e)));
-    void call<string[]>('saved_words').then(setSaved).catch(e => setError(asError(e)));
+    const accept = (value: Settings) => { persisted.current = value; setSettings(value); };
+    void call<Settings>('get_settings').then(accept).catch(e => setError(asError(e)));
+    void call<string[]>('saved_words').then(setWords).catch(e => setError(asError(e)));
     void call<string | null>('shortcut_error').then(value => { if (value) setError(value); });
     void call<string | null>('hook_error').then(value => { if (value) setError(value); });
     void call<TtsState>('tts_state').then(value => { if (value) setSpeech(value); }).catch(() => {});
     void call<Voice[]>('tts_voices').then(value => setVoices(value || [])).catch(() => {});
-    const subscription = listen('saved-changed', () => { void call<string[]>('saved_words').then(setSaved).catch(e => setError(asError(e))); });
+    const subscription = listen('saved-changed', () => { void call<string[]>('saved_words').then(setWords).catch(e => setError(asError(e))); });
     const speechEvents = listen<TtsState>('tts-state', event => setSpeech(event.payload));
-    return () => { void subscription.then(unlisten => unlisten()); void speechEvents.then(unlisten => unlisten()); };
+    const preferences = listen<Settings>('settings-changed', event => accept(event.payload));
+    return () => { void subscription.then(unlisten => unlisten()); void speechEvents.then(unlisten => unlisten()); void preferences.then(unlisten => unlisten()); };
   }, []);
-  const change = (patch: Partial<Settings>) => setDraft(current => current && { ...current, ...patch });
+  /** Updates the controls without saving, for values still being dragged or typed. */
+  const change = (patch: Partial<Settings>) => setSettings(current => current && { ...current, ...patch });
+  /** Saves immediately; if the backend rejects the change, the controls return to the last saved settings. */
+  const commit = async (patch: Partial<Settings> = {}) => {
+    if (!settings) return;
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    setError('');
+    setNotice('');
+    try { await call('update_settings', { next }); persisted.current = next; } catch (e) { setSettings(persisted.current); setError(asError(e)); }
+  };
   const capture = (field: 'shortcut' | 'readerShortcut') => (event: React.KeyboardEvent<HTMLInputElement>) => {
     event.preventDefault();
     if (event.key === 'Escape') { setCapturing(''); return; }
     if (!event.ctrlKey && !event.altKey && !event.metaKey) return;
     if (['Control', 'Alt', 'Meta', 'Shift'].includes(event.key)) return;
     const key = event.key.length === 1 ? event.key.toUpperCase() : event.key;
-    change({ [field]: `${event.ctrlKey ? 'Ctrl+' : ''}${event.altKey ? 'Alt+' : ''}${event.shiftKey ? 'Shift+' : ''}${event.metaKey ? 'Super+' : ''}${key}` });
+    void commit({ [field]: `${event.ctrlKey ? 'Ctrl+' : ''}${event.altKey ? 'Alt+' : ''}${event.shiftKey ? 'Shift+' : ''}${event.metaKey ? 'Super+' : ''}${key}` });
     setCapturing('');
   };
-  const shortcutInput = (field: 'shortcut' | 'readerShortcut', label: string) => <label>{label}<input aria-label={label} value={capturing === field ? 'Press a key combination…' : draft?.[field] || ''} readOnly onFocus={() => setCapturing(field)} onBlur={() => setCapturing('')} onKeyDown={capture(field)}/></label>;
-  const save = async () => { if (!draft) return false; setError(''); try { await call('update_settings', { next: draft }); setNotice('Settings saved.'); return true; } catch (e) { setError(asError(e)); return false; } };
+  const shortcutInput = (field: 'shortcut' | 'readerShortcut', label: string) => <Row label={label}><input className="field" aria-label={label} value={capturing === field ? 'Press a key combination…' : settings?.[field] || ''} readOnly onFocus={() => setCapturing(field)} onBlur={() => setCapturing('')} onKeyDown={capture(field)}/></Row>;
+  const slider = (field: 'speed' | 'volume', label: string, min: number, max: number, format: (value: number) => string) => <Row label={label}><span className="range"><input type="range" aria-label={label} min={min} max={max} step="0.05" value={settings?.[field] ?? 1} onChange={e => change({ [field]: Number(e.target.value) })} onPointerUp={() => void commit()} onKeyUp={() => void commit()}/><output>{format(settings?.[field] ?? 1)}</output></span></Row>;
   const run = async (command: string, success: string) => { setError(''); setNotice(''); try { await call(command); if (success) setNotice(success); } catch (e) { setError(asError(e)); } };
-  const test = async () => { if (await save()) { try { await call('tts_speak', { text: 'This is how DIO reads selected text aloud.', owner: 'popup' }); } catch (e) { setError(asError(e)); } } };
+  const test = async () => { setError(''); try { await call('tts_speak', { text: 'This is how DIO reads selected text aloud.', owner: 'popup' }); } catch (e) { setError(asError(e)); } };
   const clear = async () => { setError(''); try { await call('clear_cache'); setNotice('Dictionary cache cleared. Saved words remain.'); } catch (e) { setError(asError(e)); } };
-  if (!draft) return <main className="settings"><p>Loading settings…</p>{error && <p role="alert">{error}</p>}</main>;
-  return <main className={`settings theme-${draft.theme || 'system'}`}><header><span className="brand">DIO</span><h1>Settings</h1><p>Look up highlighted text from supported Windows apps.</p></header>
-    <section><h2>Activation</h2><label className="check"><input type="checkbox" checked={draft.keyboardEnabled} onChange={e => change({ keyboardEnabled: e.target.checked })}/> Keyboard shortcut</label>
-      {shortcutInput('shortcut', 'Shortcut')}
-      <label className="check"><input type="checkbox" checked={draft.middleClick} onChange={e => change({ middleClick: e.target.checked })}/> Middle click activation</label><p className="hint">The source app may also handle the middle click normally.</p></section>
-    <section><h2>Appearance</h2><label>Theme<select value={draft.theme} onChange={e => change({ theme: e.target.value })}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
-      <label>Popup size<select value={draft.size} onChange={e => change({ size: e.target.value })}><option value="small">Small</option><option value="standard">Standard</option><option value="large">Large</option></select></label>
-      <label className="check"><input type="checkbox" checked={draft.expanded} onChange={e => change({ expanded: e.target.checked })}/> Show expanded definitions by default</label>
-      <label className="check"><input type="checkbox" checked={draft.reducedMotion} onChange={e => change({ reducedMotion: e.target.checked })}/> Reduce motion</label></section>
-    <section><h2>Pronunciation</h2><label>Accent<select value={draft.accent || 'us'} onChange={e => change({ accent: e.target.value })}><option value="us">US English</option><option value="uk">UK English</option></select></label><p className="hint">Shows IPA in this accent first and pronounces words with a matching voice. DIO only labels an accent when its source does.</p>
-      <label>Recorded audio<select value={draft.pronunciation} onChange={e => change({ pronunciation: e.target.value })}><option value="first">First available</option><option value="us">US English</option><option value="uk">UK English</option></select></label><label className="check"><input type="checkbox" checked={draft.autoplay} onChange={e => change({ autoplay: e.target.checked })}/> Play automatically</label></section>
-    <section><h2>Speech</h2><label className="check"><input type="checkbox" checked={draft.ttsEnabled !== false} onChange={e => change({ ttsEnabled: e.target.checked })}/> Use the Kokoro voice for pronunciation and reading</label>
-      <div className="model-row"><span>{speech.status === 'downloading' ? `Downloading… ${Math.round(speech.progress * 100)}%` : speech.status === 'notInstalled' ? speech.message || 'Voice model not installed (about 95 MB).' : speech.status === 'disabled' ? 'Speech is turned off.' : speech.status === 'error' ? speech.message : 'Voice model installed. Speech runs on this computer.'}</span>
+  if (!settings) return <main className="settings"><p className="loading">Loading settings…</p>{error && <p role="alert">{error}</p>}</main>;
+  const current = sections.find(item => item.id === section)!;
+  const modelStatus = speech.status === 'downloading' ? `Downloading… ${Math.round(speech.progress * 100)}%` : speech.status === 'notInstalled' ? speech.message || 'Voice model not installed (about 95 MB).' : speech.status === 'disabled' ? 'Speech is turned off.' : speech.status === 'error' ? speech.message : 'Voice model installed. Speech runs on this computer.';
+  const body: Record<Section, React.ReactNode> = {
+    general: <>
+      <Switch label="Start DIO when I sign in" checked={settings.startup} onChange={startup => void commit({ startup })}/>
+      <Switch label="Show expanded definitions by default" checked={settings.expanded} onChange={expanded => void commit({ expanded })}/>
+      <Switch label="Reduce motion" checked={settings.reducedMotion} onChange={reducedMotion => void commit({ reducedMotion })}/>
+      <hr/>
+      <Row label="Popup size"><select value={settings.size} onChange={e => void commit({ size: e.target.value })}><option value="small">Small</option><option value="standard">Standard</option><option value="large">Large</option></select></Row>
+    </>,
+    pronunciation: <>
+      <Row label="Accent" hint="Shows IPA in this accent first and pronounces words with a matching voice. DIO only labels an accent when its source does."><select value={settings.accent || 'us'} onChange={e => void commit({ accent: e.target.value })}><option value="us">US English</option><option value="uk">UK English</option></select></Row>
+      <Row label="Recorded audio"><select value={settings.pronunciation} onChange={e => void commit({ pronunciation: e.target.value })}><option value="first">First available</option><option value="us">US English</option><option value="uk">UK English</option></select></Row>
+      <Switch label="Auto-play pronunciation" checked={settings.autoplay} onChange={autoplay => void commit({ autoplay })}/>
+      <hr/>
+      <Switch label="Use the Kokoro voice for pronunciation and reading" checked={settings.ttsEnabled !== false} onChange={ttsEnabled => void commit({ ttsEnabled })}/>
+      <div className="model-row"><span>{modelStatus}</span>
         {speech.status === 'downloading' ? <button className="secondary" onClick={() => void run('tts_cancel_install', '')}>Cancel</button>
           : speech.status === 'notInstalled' ? <button onClick={() => void run('tts_install', 'Voice installed.')}>Install voice</button>
           : speech.status !== 'disabled' && <button className="secondary" onClick={() => void run('tts_remove', 'Voice model removed.')}>Remove voice</button>}</div>
-      <label>Voice<select value={draft.voice || 'af_heart'} onChange={e => change({ voice: e.target.value })}>{voices.map(item => <option key={item.id} value={item.id}>{item.name} ({accentName[item.accent]})</option>)}</select></label>
-      <label>Speed<span className="range"><input type="range" min="0.5" max="2" step="0.05" value={draft.speed ?? 1} onChange={e => change({ speed: Number(e.target.value) })}/><output>{(draft.speed ?? 1).toFixed(2)}×</output></span></label>
-      <label>Volume<span className="range"><input type="range" min="0" max="1" step="0.05" value={draft.volume ?? 1} onChange={e => change({ volume: Number(e.target.value) })}/><output>{Math.round((draft.volume ?? 1) * 100)}%</output></span></label>
-      <div className="model-row"><span className="hint">Installing downloads the model once from Hugging Face and checks its checksum. Text is never sent anywhere.</span>{usable(speech) && draft.ttsEnabled !== false && <button className="secondary" onClick={() => void test()}>Save and test</button>}</div></section>
-    <section><h2>Read selection aloud</h2><label className="check"><input type="checkbox" checked={draft.readerEnabled !== false} onChange={e => change({ readerEnabled: e.target.checked })}/> Enable the read-aloud shortcut</label>
+      <Row label="Voice"><select value={settings.voice || 'af_heart'} onChange={e => void commit({ voice: e.target.value })}>{voices.map(item => <option key={item.id} value={item.id}>{item.name} ({accentName[item.accent]})</option>)}</select></Row>
+      {slider('speed', 'Speed', 0.5, 2, value => `${value.toFixed(2)}×`)}
+      {slider('volume', 'Volume', 0, 1, value => `${Math.round(value * 100)}%`)}
+      <div className="model-row"><span className="hint">Installing downloads the model once from Hugging Face and checks its checksum. Text is never sent anywhere.</span>{usable(speech) && settings.ttsEnabled !== false && <button className="secondary" onClick={() => void test()}>Test voice</button>}</div>
+    </>,
+    shortcuts: <>
+      <Switch label="Keyboard shortcut" checked={settings.keyboardEnabled} onChange={keyboardEnabled => void commit({ keyboardEnabled })}/>
+      {shortcutInput('shortcut', 'Shortcut')}
+      <Switch label="Middle click activation" hint="The source app may also handle the middle click normally." checked={settings.middleClick} onChange={middleClick => void commit({ middleClick })}/>
+      <hr/>
+      <Switch label="Enable read-aloud shortcut" checked={settings.readerEnabled !== false} onChange={readerEnabled => void commit({ readerEnabled })}/>
       {shortcutInput('readerShortcut', 'Read-aloud shortcut')}
-      <label>Longest selection<span className="range"><input type="number" min="100" max="10000" step="100" value={draft.readerMaxChars ?? 2000} onChange={e => change({ readerMaxChars: Math.round(Number(e.target.value)) })}/><output>characters</output></span></label>
-      <p className="hint">Select text in any app and press the shortcut to hear it. Press it again to stop. Longer selections are refused rather than cut off.</p></section>
-    <section><h2>System</h2><label className="check"><input type="checkbox" checked={draft.startup} onChange={e => change({ startup: e.target.checked })}/> Start DIO when I sign in</label></section>
-    <section><h2>Saved vocabulary</h2>{saved.length ? <div className="saved-list">{saved.map(word => <button key={word} onClick={() => void call('open_saved', { word }).catch(e => setError(asError(e)))}>{word}</button>)}</div> : <p className="hint">No saved words yet.</p>}</section>
-    <section><h2>Local data</h2><button className="secondary" onClick={() => void clear()}>Clear dictionary cache</button><p className="hint">DIO checks its bundled dictionary and local cache first. Words they do not contain are sent to the Free Dictionary API. Saved words and settings stay on this computer.</p></section>
-    {error && <p className="notice error" role="alert">{error}</p>}{notice && <p className="notice">{notice}</p>}
-    <div className="settings-actions"><button onClick={() => void save()}>Save settings</button></div>
+      <Row label="Longest selection" hint="Select text in any app and press the shortcut to hear it. Press it again to stop. Longer selections are refused rather than cut off."><span className="range"><input className="field number" type="number" min="100" max="10000" step="100" value={settings.readerMaxChars ?? 2000} onChange={e => change({ readerMaxChars: Math.round(Number(e.target.value)) })} onBlur={() => void commit()} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}/><output>characters</output></span></Row>
+    </>,
+    appearance: <>
+      <Row label="Theme"><select value={settings.theme} onChange={e => void commit({ theme: e.target.value })}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></Row>
+    </>,
+    saved: words.length ? <div className="saved-list">{words.map(word => <button key={word} onClick={() => void call('open_saved', { word }).catch(e => setError(asError(e)))}>{word}</button>)}</div> : <p className="hint">No saved words yet.</p>,
+    data: <>
+      <div className="model-row"><span>Dictionary cache</span><button className="secondary" onClick={() => void clear()}>Clear dictionary cache</button></div>
+      <p className="hint">DIO checks its bundled dictionary and local cache first. Words they do not contain are sent to the Free Dictionary API. Saved words and settings stay on this computer.</p>
+    </>,
+  };
+  return <main className={`settings theme-${settings.theme || 'system'}`}>
+    <nav className="sidebar" role="tablist" aria-label="Settings sections" aria-orientation="vertical" onKeyDown={tabKeys(sections.map(item => item.id), section, setSection, true)}>
+      {sections.map(item => <button key={item.id} role="tab" data-tab={item.id} id={`section-${item.id}`} aria-controls="settings-panel" aria-selected={section === item.id} tabIndex={section === item.id ? 0 : -1} onClick={() => { setSection(item.id); setNotice(''); }}><Icon name={item.icon}/>{item.label}</button>)}
+    </nav>
+    <section className="pane" id="settings-panel" role="tabpanel" aria-labelledby={`section-${section}`}>
+      <h1>{current.label}</h1>
+      <p className="subtitle">{current.subtitle}</p>
+      {error && <p className="notice error" role="alert">{error}</p>}{notice && <p className="notice">{notice}</p>}
+      {body[section]}
+    </section>
   </main>;
 }
 
