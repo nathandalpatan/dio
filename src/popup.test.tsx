@@ -56,6 +56,20 @@ describe('popup', () => {
     expect(screen.queryByText('serendipity')).toBeNull();
   });
 
+  it('caps long sense lists and hides numeronym synonyms', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    const definitions = Array.from({ length: 7 }, (_, i) => ({ definition: `Sense ${i + 1}.`, example: '', synonyms: [], antonyms: [] }));
+    const long = { ...entry, meanings: [{ partOfSpeech: 'noun', definitions, synonyms: ['a11y', 'usability'], antonyms: [] }] };
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [long], expanded: true });
+    expect(screen.getByText('Sense 5.')).toBeTruthy();
+    expect(screen.queryByText('Sense 6.')).toBeNull();
+    expect(screen.queryByText(/a11y/)).toBeNull();
+    expect(screen.getByText('usability')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show all 7 meanings' }));
+    expect(screen.getByText('Sense 7.')).toBeTruthy();
+  });
+
   it('hides absent fields and follows related words', async () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
@@ -156,6 +170,21 @@ describe('popup', () => {
     send({ requestId: 2, status: 'ready', entries: [recorded] });
     fireEvent.click(screen.getByRole('button', { name: 'Play pronunciation' }));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('pronunciation', { url: recorded.phonetics[0].audio }));
+  });
+
+  it('shows simple definitions compactly and adds the full dictionary when expanded', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    const sense = (definition: string) => ({ definition, example: '', synonyms: [], antonyms: [] });
+    const simple = { ...entry, word: 'run', meanings: [{ partOfSpeech: 'verb', definitions: [sense('If you run, you go quickly.')], synonyms: [], antonyms: [] }] };
+    const full = { ...entry, word: 'run', meanings: [{ partOfSpeech: 'verb', definitions: [sense('To run.')], synonyms: [], antonyms: [] }] };
+    send({ requestId: 1, status: 'ready', query: 'run', entries: [simple, full] });
+    expect(screen.getByText('If you run, you go quickly.')).toBeTruthy();
+    expect(screen.queryByText('To run.')).toBeNull();
+    send({ requestId: 1, status: 'ready', query: 'run', entries: [simple, full], expanded: true });
+    expect(screen.getByText('If you run, you go quickly.')).toBeTruthy();
+    expect(screen.getByText('More meanings')).toBeTruthy();
+    expect(screen.getByText('To run.')).toBeTruthy();
   });
 
   it('shows speech status and playback controls in the footer', async () => {

@@ -77,6 +77,8 @@ const safeUrl = (address: string) => { try { const url = new URL(address); retur
 const unique = (items: string[]) => [...new Set(items.filter(Boolean))];
 
 type Tab = 'definition' | 'examples' | 'synonyms' | 'related';
+/** Senses shown per part of speech in the expanded view before "Show all". */
+const SENSES = 5;
 
 /** Keyboard switching for a tablist: arrow keys move between tabs and wrap around. */
 function tabKeys<T extends string>(ids: T[], current: T, select: (id: T) => void, vertical = false) {
@@ -97,6 +99,7 @@ export function PopupView() {
   const [speech, setSpeech] = useState<TtsState>(idleSpeech);
   const [voices, setVoices] = useState<Voice[]>([]);
   const [tab, setTab] = useState<Tab>('definition');
+  const [showAll, setShowAll] = useState(false);
   useEffect(() => {
     let eventSeen = false;
     let speechSeen = false;
@@ -114,7 +117,7 @@ export function PopupView() {
     window.addEventListener('keydown', key);
     return () => { window.removeEventListener('keydown', key); void subscription.then(unlisten => unlisten()); void preferences.then(unlisten => unlisten()); void speechEvents.then(unlisten => unlisten()); };
   }, []);
-  useEffect(() => setTab('definition'), [state.requestId]);
+  useEffect(() => { setTab('definition'); setShowAll(false); }, [state.requestId]);
   const entry = state.entries[0];
   const word = entry?.word || state.query;
   const primary = entry?.meanings.find(meaning => meaning.definitions.length > 0);
@@ -149,17 +152,17 @@ export function PopupView() {
   const save = async () => { try { await call('save_word', { save: !state.saved }); } catch (e) { setError(asError(e)); } };
   const control = (command: string) => void call(command).catch(e => setError(asError(e)));
   const readable = state.status === 'ready' && entry ? [word, primary?.definitions[0]?.definition].filter(Boolean).join('. ') : '';
-  const related = (key: 'synonyms' | 'antonyms') => unique(entry?.meanings.flatMap(meaning => meaning[key].concat(meaning.definitions.flatMap(definition => definition[key]))) || []);
+  const related = (key: 'synonyms' | 'antonyms') => unique(state.entries.flatMap(item => item.meanings).flatMap(meaning => meaning[key].concat(meaning.definitions.flatMap(definition => definition[key])))).filter(item => !/\d/.test(item));
   const chooseVoice = async (next: string) => { if (!settings) return; setError(''); try { await call('update_settings', { next: { ...settings, voice: next } }); } catch (e) { setError(asError(e)); } };
   const picker = settings?.ttsEnabled !== false && voices.length > 0 && !busy.includes(speech.status);
 
   const synonyms = related('synonyms');
   const antonyms = related('antonyms');
   const examples = unique(entry?.meanings.flatMap(meaning => meaning.definitions.map(definition => definition.example)) || []);
-  const hasSources = !!entry && (entry.sourceUrls.length > 0 || !!entry.license || !!audio?.license || !!audio?.sourceUrl);
+  const hasSources = !!entry && (state.entries.some(item => item.sourceUrls.length > 0 || !!item.license) || !!audio?.license || !!audio?.sourceUrl);
   const links = (items: string[]) => items.map((item, i) => <React.Fragment key={item}>{i > 0 && ', '}<button className="link" onClick={() => void more(item)}>{item}</button></React.Fragment>);
   const variantList = <ul className="variants">{variants.map(item => <li key={`${item.dialect}${item.ipa}`}><span className="accent">{item.dialect ? item.dialect.toUpperCase() : '—'}</span><span className="ipa">{item.source === 'generated' && '≈'}{item.ipa}</span><span className="variant-source">{sourceName[item.source]}</span></li>)}</ul>;
-  const sources = entry && <p className="source">Source: {entry.sourceUrls.map(url => safeUrl(url) && <a key={url} href={safeUrl(url)!} target="_blank" rel="noreferrer">Entry source</a>)}{entry.license && <> · {safeUrl(entry.license.url) ? <a href={safeUrl(entry.license.url)!} target="_blank" rel="noreferrer">{entry.license.name}</a> : entry.license.name}</>}{audio?.sourceUrl && safeUrl(audio.sourceUrl) && <> · <a href={safeUrl(audio.sourceUrl)!} target="_blank" rel="noreferrer">Audio source</a></>}{audio?.license && <> · Audio: {safeUrl(audio.license.url) ? <a href={safeUrl(audio.license.url)!} target="_blank" rel="noreferrer">{audio.license.name}</a> : audio.license.name}</>}</p>;
+  const sources = entry && <p className="source">Source: {state.entries.map((item, n) => <React.Fragment key={n}>{n > 0 && ' · '}{item.sourceUrls.map(url => safeUrl(url) && <a key={url} href={safeUrl(url)!} target="_blank" rel="noreferrer">Entry source</a>)}{item.license && <> · {safeUrl(item.license.url) ? <a href={safeUrl(item.license.url)!} target="_blank" rel="noreferrer">{item.license.name}</a> : item.license.name}</>}</React.Fragment>)}{audio?.sourceUrl && safeUrl(audio.sourceUrl) && <> · <a href={safeUrl(audio.sourceUrl)!} target="_blank" rel="noreferrer">Audio source</a></>}{audio?.license && <> · Audio: {safeUrl(audio.license.url) ? <a href={safeUrl(audio.license.url)!} target="_blank" rel="noreferrer">{audio.license.name}</a> : audio.license.name}</>}</p>;
   const relatedRows = [
     entry?.origin && { id: 'origin', label: 'Origin', icon: 'book', body: <p>{entry.origin}</p> },
     antonyms.length > 0 && { id: 'antonyms', label: 'Antonyms', icon: 'swap', body: <p>{links(antonyms)}</p> },
@@ -198,7 +201,7 @@ export function PopupView() {
         </div>
         {state.stale && <p className="notice">{state.message}</p>}
         {state.expanded ? <div className="details">
-          {entry.meanings.map((meaning, index) => meaning.definitions.length > 0 && <section key={`${meaning.partOfSpeech}-${index}`}><h2>{meaning.partOfSpeech}</h2><ol>{meaning.definitions.map((definition, i) => <li key={i}>{definition.definition}{definition.example && <p className="example">“{definition.example}”</p>}</li>)}</ol></section>)}
+          {state.entries.map((item, n) => <React.Fragment key={n}>{n === 1 && <h3 className="more-meanings">More meanings</h3>}{item.meanings.map((meaning, index) => meaning.definitions.length > 0 && <section key={`${meaning.partOfSpeech}-${index}`}><h2>{meaning.partOfSpeech}</h2><ol>{(showAll ? meaning.definitions : meaning.definitions.slice(0, SENSES)).map((definition, i) => <li key={i}>{definition.definition}{definition.example && <p className="example">“{definition.example}”</p>}</li>)}</ol>{!showAll && meaning.definitions.length > SENSES && <button className="link show-all" onClick={() => setShowAll(true)}>Show all {meaning.definitions.length} meanings</button>}</section>)}</React.Fragment>)}
           {synonyms.length > 0 && <section className="related"><h2>Synonyms</h2><p>{links(synonyms)}</p></section>}
           {antonyms.length > 0 && <section className="related"><h2>Antonyms</h2><p>{links(antonyms)}</p></section>}
           {variants.length > 1 && <section><h2>Pronunciation</h2>{variantList}</section>}

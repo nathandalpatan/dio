@@ -87,8 +87,11 @@ h1, h2, p { margin-top: 0; }
 .details section + section { border-top: 1px solid var(--rule); }
 .details h2 { margin: 0 0 6px; font-family: var(--serif); font-size: 15px; font-weight: 600; }
 .details h2::first-letter { text-transform: uppercase; }
-.details ol { margin: 0; padding-left: 26px; }
-.details ol li { padding-left: 6px; }
+.details ol { margin: 0; padding-left: 20px; list-style: decimal; }
+.details ol li { padding-left: 4px; }
+.details li::marker { color: var(--muted); font-family: var(--sans); font-size: 11px; }
+.more-meanings { margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--rule); color: var(--muted); font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.show-all { margin: 0 0 6px 20px; color: var(--muted); font-size: 12px; }
 .details li { margin-bottom: 7px; font-family: var(--serif); font-size: 13px; line-height: 1.45; }
 .details > section > p { font-size: 12px; line-height: 1.5; }
 .example { margin: 4px 0 0; color: var(--muted); font-style: italic; }
@@ -115,6 +118,7 @@ h1, h2, p { margin-top: 0; }
 .icon-control svg { width: 17px; height: 17px; }
 .expand-button { border: 0; background: none; padding: 3px 4px; font-size: 12px; }
 .expand-button:hover { color: var(--accent); }
+.expand-button:focus-visible { outline: none; text-decoration: underline; text-underline-offset: 3px; }
 
 .reading { padding: 6px 0; }
 .reading-label { margin: 0 0 6px; font-size: 12px; font-weight: 600; }
