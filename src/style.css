@@ -113,8 +113,8 @@ h1, h2, p { margin-top: 0; }
 .voice-picker svg { position: absolute; right: 0; width: 14px; height: 14px; pointer-events: none; }
 .footer-controls { display: flex; flex: none; align-items: center; gap: 10px; }
 .icon-control svg { width: 17px; height: 17px; }
-.expand-button { border: 0; border-radius: 6px; background: var(--surface-strong); padding: 3px 8px; font-size: 12px; }
-.expand-button:hover { background: var(--accent-soft); }
+.expand-button { border: 0; background: none; padding: 3px 4px; font-size: 12px; }
+.expand-button:hover { color: var(--accent); }
 
 .reading { padding: 6px 0; }
 .reading-label { margin: 0 0 6px; font-size: 12px; font-weight: 600; }
