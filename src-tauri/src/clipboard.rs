@@ -10,8 +10,8 @@ use windows::Win32::{
     System::{
         DataExchange::{
             CloseClipboard, CountClipboardFormats, EmptyClipboard, EnumClipboardFormats,
-            GetClipboardData, GetClipboardOwner, GetClipboardSequenceNumber, OpenClipboard,
-            SetClipboardData,
+            GetClipboardData, GetClipboardOwner, GetClipboardSequenceNumber,
+            IsClipboardFormatAvailable, OpenClipboard, SetClipboardData,
         },
         Memory::{GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock, GMEM_MOVEABLE},
         Threading::{OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION},
@@ -238,7 +238,8 @@ unsafe fn copy_selection(window: HWND, sequence: u32, copy: CopyKey) -> Result<(
 unsafe fn clipboard_text(limits: Limits) -> Result<String, String> {
     let handle = GetClipboardData(13).map_err(|_| "Copy did not provide text.".to_string())?;
     let size = GlobalSize(HGLOBAL(handle.0));
-    if size < 2 || !size.is_multiple_of(2) {
+    // Some apps (Adobe Acrobat) allocate an odd byte count; the text ends at its NUL.
+    if size < 2 {
         return Err("Copied text is invalid.".into());
     }
     let pointer = GlobalLock(HGLOBAL(handle.0));
@@ -304,7 +305,9 @@ pub fn capture(
         let copy = if terminal { CopyKey::Insert } else { copy };
         let (sequence, formats) = snapshot(owner)?;
         copy_selection(window, sequence, copy)?;
-        let deadline = Instant::now() + Duration::from_millis(400);
+        // Some apps (Adobe Acrobat) fill the clipboard in several steps, adding the text last,
+        // so wait for the text itself. A copy that never adds it is still restored below.
+        let deadline = Instant::now() + Duration::from_millis(1000);
         let mut changed = sequence;
         let mut last_change = Instant::now();
         loop {
@@ -314,12 +317,17 @@ pub fn capture(
                     changed = current;
                     last_change = Instant::now();
                 }
-                if last_change.elapsed() >= Duration::from_millis(20) {
+                if last_change.elapsed() >= Duration::from_millis(20)
+                    && IsClipboardFormatAvailable(13).is_ok()
+                {
                     break;
                 }
             }
             if Instant::now() >= deadline {
-                return Err("Copy timed out.".into());
+                if changed == sequence {
+                    return Err("Copy timed out.".into());
+                }
+                break;
             }
             sleep(Duration::from_millis(5));
         }
@@ -328,9 +336,12 @@ pub fn capture(
                 return Err("The selected application lost focus.".into());
             }
             let _open = OpenedClipboard::new(owner)?;
-            let source_owned =
-                source_process(GetClipboardOwner().map_err(|_| "Copy has no clipboard owner.")?)?
-                    == pid;
+            // Some apps, such as Adobe Acrobat, copy without an owner window. The change still
+            // followed DIO's copy keystroke while the app kept focus, so it is attributed to it.
+            let source_owned = match GetClipboardOwner() {
+                Ok(clipboard_owner) => source_process(clipboard_owner)? == pid,
+                Err(_) => true,
+            };
             if GetClipboardSequenceNumber() != changed || !source_owned {
                 return Err("Clipboard changed outside the selected application.".into());
             }
