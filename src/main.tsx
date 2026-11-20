@@ -338,7 +338,7 @@ function SettingsView() {
     saved: words.length ? <div className="saved-list">{words.map(word => <button key={word} onClick={() => void call('open_saved', { word }).catch(e => setError(asError(e)))}>{word}</button>)}</div> : <p className="hint">No saved words yet.</p>,
     data: <>
       <div className="model-row"><span>Dictionary cache</span><button className="secondary" onClick={() => void clear()}>Clear dictionary cache</button></div>
-      <p className="hint">DIO checks its bundled dictionary and local cache first. Words they do not contain are sent to the Free Dictionary API. Saved words and settings stay on this computer.</p>
+      <p className="hint">DIO checks its local cache, then sends the word to Simple English Wiktionary and the Free Dictionary API, and uses its bundled dictionary when offline or when neither has an entry. Saved words and settings stay on this computer.</p>
     </>,
   };
   return <main className={`settings theme-${settings.theme || 'system'}`}>

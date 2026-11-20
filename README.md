@@ -15,7 +15,7 @@ Built with Rust and Tauri, DIO combines offline dictionary resources with online
 - **Rich definitions**: definitions, examples, synonyms, and word origins when available.
 - **Saved vocabulary**: bookmark words for future reference.
 - **Customisable controls**: configure both shortcuts and optional middle-click activation.
-- **Local-first privacy**: offline lookups, local speech, clipboard preservation, and local data storage.
+- **Local-first privacy**: offline fallback dictionary, local speech, clipboard preservation, and local data storage.
 
 ## Getting Started
 
@@ -42,7 +42,7 @@ Accent, voice, speed, volume, the read-aloud shortcut, and the selection limit a
 
 DIO retrieves selected text using Windows UI Automation. When that fails, it falls back to a clipboard copy: it sends **Ctrl + C**, or **Ctrl + Insert** in terminals, where Ctrl + C would interrupt the running program. Clipboard contents are backed up and restored. The classic console window and password fields are refused.
 
-Lookups prioritise bundled SQLite dictionaries and cached entries before querying the [Free Dictionary API](https://dictionaryapi.dev/).
+Lookups use cached entries first. Otherwise DIO asks [Simple English Wiktionary](https://simple.wiktionary.org/), which writes definitions in plain English for learners, and the [Free Dictionary API](https://dictionaryapi.dev/) at the same time. The compact popup shows the Simple English definitions when they exist, and **Expand** adds the Free Dictionary API's fuller list of meanings below them. Other words use the Free Dictionary API's definitions. Words are pronounced by the Kokoro voice when it is installed, with the Free Dictionary API's recordings as the fallback. The bundled SQLite dictionary is used when offline or when neither has an entry. Names, DIO itself and ALL-CAPS acronyms always come from the bundled data.
 
 Pronunciation is resolved after the definition is shown, so missing data never blocks a definition. Sources are tried in this order:
 
@@ -64,6 +64,7 @@ Settings, cached definitions, saved vocabulary, and the voice model are stored l
 - **Windows UI Automation**: system-wide text selection.
 - **ONNX Runtime, Kokoro-82M & misaki-rs**: local speech synthesis.
 - **rodio**: audio playback.
+- **Simple English Wiktionary**: plain-English online definitions.
 - **Free Dictionary API**: online definitions and pronunciation.
 
 ## Development
@@ -130,7 +131,7 @@ Build checks, API responses, and CPU-only synthesis have been verified. Native i
 
 ## Attribution
 
-DIO uses dictionary resources from Open English WordNet, CloudBytes Academy, Wiktionary, CMUdict, and the Free Dictionary API, and speech from Kokoro-82M, misaki, and ONNX Runtime.
+DIO uses dictionary resources from Open English WordNet, CloudBytes Academy, Wiktionary, Simple English Wiktionary, CMUdict, and the Free Dictionary API, and speech from Kokoro-82M, misaki, and ONNX Runtime.
 
 - [English Dictionary Licence](src-tauri/resources/DICTIONARY-LICENSE.md)
 - [Acronym Dictionary Licence](src-tauri/resources/ACRONYM-LICENSE.md)
