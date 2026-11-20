@@ -237,8 +237,8 @@ describe('settings', () => {
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: { ...speechSettings, voice: 'bf_emma', accent: 'uk' } }));
     fireEvent.click(screen.getByRole('tab', { name: 'Shortcuts' }));
     fireEvent.focus(screen.getByLabelText('Read-aloud shortcut'));
-    fireEvent.keyDown(screen.getByLabelText('Read-aloud shortcut'), { key: 'q', ctrlKey: true, shiftKey: true });
-    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: { ...speechSettings, voice: 'bf_emma', accent: 'uk', readerShortcut: 'Ctrl+Shift+Q' } }));
+    fireEvent.keyDown(screen.getByLabelText('Read-aloud shortcut'), { key: '!', code: 'Digit1', ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: { ...speechSettings, voice: 'bf_emma', accent: 'uk', readerShortcut: 'Ctrl+Shift+1' } }));
     expect(screen.queryByText('Save settings')).toBeNull();
   });
 

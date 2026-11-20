@@ -289,7 +289,8 @@ function SettingsView() {
     if (event.key === 'Escape') { setCapturing(''); return; }
     if (!event.ctrlKey && !event.altKey && !event.metaKey) return;
     if (['Control', 'Alt', 'Meta', 'Shift'].includes(event.key)) return;
-    const key = event.key.length === 1 ? event.key.toUpperCase() : event.key;
+    // event.code names the physical key, so Shift+1 records as 1 and Space as Space on any layout.
+    const key = event.code.replace(/^(Key|Digit)/, '');
     void commit({ [field]: `${event.ctrlKey ? 'Ctrl+' : ''}${event.altKey ? 'Alt+' : ''}${event.shiftKey ? 'Shift+' : ''}${event.metaKey ? 'Super+' : ''}${key}` });
     setCapturing('');
   };
