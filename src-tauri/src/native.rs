@@ -352,6 +352,7 @@ impl Hooks {
                                 let _ = window.hide();
                             }
                             v.store(false, Ordering::Relaxed);
+                            crate::stop_popup_speech(&app);
                         }
                         InputEvent::Click { x, y, middle } => {
                             if v.load(Ordering::Relaxed) {
@@ -366,6 +367,7 @@ impl Hooks {
                                         {
                                             let _ = window.hide();
                                             v.store(false, Ordering::Relaxed);
+                                            crate::stop_popup_speech(&app);
                                         }
                                     }
                                 }
@@ -380,7 +382,14 @@ impl Hooks {
                         _ => {}
                     }
                 }
-                std::thread::sleep(std::time::Duration::from_millis(12));
+                // Low-level hook callbacks only run while this thread pumps messages, so wake on
+                // input immediately instead of sleeping, which would delay every mouse event.
+                unsafe {
+                    use windows::Win32::UI::WindowsAndMessaging::{
+                        MsgWaitForMultipleObjects, QS_ALLINPUT,
+                    };
+                    let _ = MsgWaitForMultipleObjects(None, false, 12, QS_ALLINPUT);
+                }
             }
         });
         Self {
