@@ -227,7 +227,7 @@ export function PopupView() {
           : readable && canSpeak && <button className="icon-control" onClick={() => void speak(readable, 'popup')} aria-label="Read definition aloud"><Icon name="play"/></button>}
         {(speaking(speech) || speech.status === 'paused') && <button className="icon-control" onClick={() => control('tts_stop')} aria-label="Stop speech"><Icon name="stop"/></button>}
         <button className="icon-control" onClick={() => control('show_settings')} aria-label="Speech settings"><Icon name="sliders"/></button>
-        {state.status === 'ready' && <button className="expand-button" onClick={() => void toggle()}>{state.expanded ? 'Less' : 'More'} {state.expanded ? opposite[state.direction] : arrows[state.direction]}</button>}
+        {state.status === 'ready' && <button className="expand-button" onClick={() => void toggle()}>{state.expanded ? 'Collapse' : 'Expand'} {state.expanded ? opposite[state.direction] : arrows[state.direction]}</button>}
       </span>
     </footer>
   </main>;

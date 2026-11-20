@@ -22,7 +22,7 @@ Built with Rust and Tauri, DIO combines offline dictionary resources with online
 1. Install DIO using the generated Windows installer.
 2. Highlight a word or short expression in any supported application.
 3. Press **Ctrl + Alt + D** to open the dictionary popup.
-4. Select **More** for additional definitions and pronunciation variants. Click the speaker beside the IPA to hear the word.
+4. Select **Expand** for additional definitions and pronunciation variants. Click the speaker beside the IPA to hear the word.
 
 Press **Escape** or click outside to dismiss the popup.
 

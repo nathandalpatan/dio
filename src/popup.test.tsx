@@ -107,17 +107,17 @@ describe('popup', () => {
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
     send({ requestId: 1, status: 'ready', entries: [entry], direction: 'nw', canBack: true });
     expect(container.querySelector('.reduced-motion')).toBeTruthy();
-    fireEvent.click(screen.getByText('More ↖'));
+    fireEvent.click(screen.getByText('Expand ↖'));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('expand', { expanded: true, reducedMotion: false }));
     send({ requestId: 1, status: 'ready', entries: [entry], direction: 'nw', expanded: true, canBack: true });
-    expect(screen.getByText('Less ↘')).toBeTruthy();
+    expect(screen.getByText('Collapse ↘')).toBeTruthy();
     fireEvent.keyDown(window, { key: 'Backspace' });
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(api.invoke).toHaveBeenCalledWith('back', undefined);
     expect(api.invoke).toHaveBeenCalledWith('close_popup', undefined);
   });
 
-  it('shows sourced IPA in the preferred accent with every variant under More', async () => {
+  it('shows sourced IPA in the preferred accent with every variant under Expand', async () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['settings-changed']).toBeDefined());
     const pronunciations = [
@@ -201,14 +201,14 @@ describe('popup', () => {
     send({ requestId: 3, status: 'reading', reading: 'The selected paragraph…' });
     expect(screen.getByText('Reading selection aloud')).toBeTruthy();
     expect(screen.getByText('The selected paragraph…')).toBeTruthy();
-    expect(screen.queryByText(/More/)).toBeNull();
+    expect(screen.queryByText(/Expand/)).toBeNull();
   });
 
   it('keeps dismissal available when a lookup fails', async () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
     send({ requestId: 1, status: 'network', message: 'Dictionary service returned 502 Bad Gateway.' });
-    expect(screen.queryByText('More')).toBeNull();
+    expect(screen.queryByText('Expand')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(api.invoke).toHaveBeenCalledWith('back', undefined);
