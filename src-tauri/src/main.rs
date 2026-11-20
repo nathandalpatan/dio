@@ -106,7 +106,7 @@ fn fail(app: &AppHandle, id: u64, status: &str, message: String) {
 }
 
 async fn resolve(app: AppHandle, word: String, id: u64) {
-    let local = match shared(&app).local_dictionary.lock().unwrap().lookup(&word) {
+    let local = match shared(&app).local_dictionary.lock().unwrap().special(&word) {
         Ok(entries) => entries,
         Err(error) => {
             eprintln!("DIO local dictionary failed: {error}");
@@ -133,17 +133,32 @@ async fn resolve(app: AppHandle, word: String, id: u64) {
     } else {
         shared(&app).dictionary.lookup(&word).await
     };
+    let mut bundled = false;
     let (entries, stale) = match fetched {
         Ok(entries) => (entries, false),
         Err(error) => match cached {
             Some(item) => (item.entries, true),
             None => {
-                fail(&app, id, error.kind, error.message);
-                return;
+                let fallback = shared(&app).local_dictionary.lock().unwrap().words(&word);
+                match fallback {
+                    Ok(Some(entries)) => {
+                        bundled = true;
+                        (entries, false)
+                    }
+                    Ok(None) => {
+                        fail(&app, id, error.kind, error.message);
+                        return;
+                    }
+                    Err(local_error) => {
+                        eprintln!("DIO local dictionary failed: {local_error}");
+                        fail(&app, id, error.kind, error.message);
+                        return;
+                    }
+                }
             }
         },
     };
-    if !stale && !cache_hit && !local_hit {
+    if !stale && !cache_hit && !local_hit && !bundled {
         if let Err(error) = shared(&app)
             .storage
             .lock()
@@ -883,7 +898,7 @@ mod tests {
             ("Andrei Vergara", "John (Andrei) Vergara"),
             ("John Andrei Vergara", "John (Andrei) Vergara"),
         ] {
-            let entries = dictionary.lookup(alias).unwrap().unwrap();
+            let entries = dictionary.special(alias).unwrap().unwrap();
             assert_eq!(entry_word(alias, &entries), canonical);
         }
     }

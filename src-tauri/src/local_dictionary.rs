@@ -16,7 +16,8 @@ impl LocalDictionary {
         Ok(Self { db, acronyms })
     }
 
-    pub fn lookup(&self, word: &str) -> Result<Option<Vec<Entry>>, String> {
+    /// Entries that always win over the online dictionary: names, DIO and ALL-CAPS acronyms.
+    pub fn special(&self, word: &str) -> Result<Option<Vec<Entry>>, String> {
         if let Some((name, description)) = [
             (
                 &["Connor Knoetze"][..],
@@ -75,12 +76,21 @@ impl LocalDictionary {
                 return Ok(Some(vec![entry]));
             }
         }
+        Ok(None)
+    }
+
+    /// Bundled WordNet definitions, used when the online dictionary has no entry or is offline.
+    pub fn words(&self, word: &str) -> Result<Option<Vec<Entry>>, String> {
         let normalized = word.to_lowercase();
         let mut candidates = vec![normalized.clone()];
         if let Some(stem) = normalized.strip_suffix("ies") {
             candidates.push(format!("{stem}y"));
         }
-        if let Some(stem) = normalized.strip_suffix("s") {
+        // Shorter stems turn words like "is" and "his" into "i" (iodine) and "hi" (Hawaii).
+        if let Some(stem) = normalized
+            .strip_suffix("s")
+            .filter(|stem| stem.chars().count() >= 3)
+        {
             candidates.push(stem.to_string());
         }
         if let Some(stem) = normalized.strip_suffix("es") {
@@ -187,7 +197,7 @@ impl LocalDictionary {
                 words
             };
             let definition = Definition {
-                definition,
+                definition: without_grammar_notes(&definition),
                 example,
                 synonyms,
                 ..Default::default()
@@ -208,6 +218,10 @@ impl LocalDictionary {
         if meanings.is_empty() {
             return Ok(None);
         }
+        // shortcut: WordNet rows are not ordered by frequency and carry no proper-noun flag, so the
+        // part of speech with the most senses goes first; rebuild with original casing to filter
+        // proper nouns such as "Nice" or "Set".
+        meanings.sort_by_key(|meaning| std::cmp::Reverse(meaning.definitions.len()));
         Ok(Some(Entry {
             word: display_word.to_string(),
             meanings,
@@ -221,6 +235,20 @@ impl LocalDictionary {
     }
 }
 
+/// Drops WordNet's grammar annotations such as "; quantifier, singular" from a gloss.
+fn without_grammar_notes(definition: &str) -> String {
+    definition
+        .split("; ")
+        .filter(|part| {
+            !["entity", "quantifier", "pronoun"].iter().any(|note| {
+                part.strip_prefix(note)
+                    .is_some_and(|rest| rest.starts_with([',', ':']))
+            })
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,15 +259,15 @@ mod tests {
         let acronyms = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/acronyms.sqlite3");
         let dictionary = LocalDictionary::open(&path, &acronyms).unwrap();
         for word in ["another", "instruction", "Blockers"] {
-            let entries = dictionary.lookup(word).unwrap().unwrap();
+            let entries = dictionary.words(word).unwrap().unwrap();
             assert!(!entries[0].meanings[0].definitions[0].definition.is_empty());
         }
-        let dio = dictionary.lookup("dio").unwrap().unwrap();
+        let dio = dictionary.special("dio").unwrap().unwrap();
         assert_eq!(dio[0].word, "DIO");
         assert!(dio[0].meanings[0].definitions[0]
             .definition
             .contains("desktop dictionary"));
-        let connor = dictionary.lookup("connor knoetze").unwrap().unwrap();
+        let connor = dictionary.special("connor knoetze").unwrap().unwrap();
         assert_eq!(connor[0].word, "Connor Knoetze");
         assert!(connor[0].meanings[0].definitions[0]
             .definition
@@ -249,7 +277,7 @@ mod tests {
             "Noah George Pickering",
             "Noah (George) Pickering",
         ] {
-            let entry = dictionary.lookup(alias).unwrap().unwrap();
+            let entry = dictionary.special(alias).unwrap().unwrap();
             assert_eq!(entry[0].word, "Noah (George) Pickering");
             assert!(entry[0].meanings[0].definitions[0]
                 .definition
@@ -261,13 +289,13 @@ mod tests {
             "John Andrei Vergara",
             "John (Andrei) Vergara",
         ] {
-            let entry = dictionary.lookup(alias).unwrap().unwrap();
+            let entry = dictionary.special(alias).unwrap().unwrap();
             assert_eq!(entry[0].word, "John (Andrei) Vergara");
             assert!(entry[0].meanings[0].definitions[0]
                 .definition
                 .contains("chud streak"));
         }
-        let api = dictionary.lookup("API").unwrap().unwrap();
+        let api = dictionary.special("API").unwrap().unwrap();
         assert_eq!(api[0].word, "API");
         assert!(api[0].meanings[0].definitions[0]
             .definition
@@ -280,24 +308,28 @@ mod tests {
                 .to_lowercase()
                 .contains("application programming interface")));
         assert!(api[0].meanings[0].definitions.len() > 1);
-        assert_eq!(dictionary.lookup("api").unwrap().unwrap()[0].word, "API");
-        let ram = dictionary.lookup("ram").unwrap().unwrap();
+        assert_eq!(dictionary.words("api").unwrap().unwrap()[0].word, "API");
+        let ram = dictionary.words("ram").unwrap().unwrap();
         assert_eq!(ram[0].word, "ram");
-        let ram_acronym = dictionary.lookup("RAM").unwrap().unwrap();
+        let ram_acronym = dictionary.special("RAM").unwrap().unwrap();
         assert_eq!(ram_acronym[0].word, "RAM");
         assert!(ram_acronym[0].meanings[0].definitions[0]
             .definition
             .to_lowercase()
             .contains("random-access memory"));
-        assert!(dictionary.lookup("FYI").unwrap().is_some());
-        assert!(dictionary.lookup("FAQ").unwrap().is_some());
-        assert!(dictionary.lookup("2FA").unwrap().is_some());
-        let gpu = dictionary.lookup("GPU").unwrap().unwrap();
+        assert!(dictionary.special("FYI").unwrap().is_some());
+        assert!(dictionary.words("FAQ").unwrap().is_some());
+        assert!(dictionary.special("2FA").unwrap().is_some());
+        let gpu = dictionary.special("GPU").unwrap().unwrap();
         assert!(gpu[0].meanings[0].definitions[0]
             .definition
             .contains("creation of images"));
         for spelling in ["LOL", "LoL", "lol"] {
-            let entries = dictionary.lookup(spelling).unwrap().unwrap();
+            let entries = dictionary
+                .special(spelling)
+                .unwrap()
+                .or(dictionary.words(spelling).unwrap())
+                .unwrap();
             assert_eq!(entries[0].word, "LOL");
             assert!(entries[0].meanings[0].definitions[0]
                 .definition
@@ -314,11 +346,54 @@ mod tests {
             ("IRL", "In real life:"),
             ("DM", "Direct message:"),
         ] {
-            let entry = dictionary.lookup(term).unwrap().unwrap();
+            let entry = dictionary.special(term).unwrap().unwrap();
             assert!(entry[0].meanings[0].definitions[0]
                 .definition
                 .starts_with(expected));
         }
-        assert!(dictionary.lookup("zzzznotawordzzzz").unwrap().is_none());
+        assert!(dictionary.words("zzzznotawordzzzz").unwrap().is_none());
+    }
+
+    #[test]
+    fn bundled_definitions_lead_with_the_common_meaning() {
+        let resources = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources");
+        let dictionary = LocalDictionary::open(
+            &resources.join("english.sqlite3"),
+            &resources.join("acronyms.sqlite3"),
+        )
+        .unwrap();
+        for (word, part) in [
+            ("set", "verb"),
+            ("run", "verb"),
+            ("make", "verb"),
+            ("nice", "adjective"),
+            ("bank", "noun"),
+        ] {
+            let entries = dictionary.words(word).unwrap().unwrap();
+            assert_eq!(entries[0].meanings[0].part_of_speech, part, "{word}");
+        }
+        let another = dictionary.words("another").unwrap().unwrap();
+        let gloss = &another[0].meanings[0].definitions[0].definition;
+        assert!(gloss.starts_with("any of various alternatives") && !gloss.contains("quantifier"));
+        for word in ["is", "was", "has", "his", "its"] {
+            let glosses = dictionary
+                .words(word)
+                .unwrap()
+                .into_iter()
+                .flatten()
+                .flat_map(|entry| entry.meanings)
+                .flat_map(|meaning| meaning.definitions)
+                .map(|definition| definition.definition)
+                .collect::<Vec<_>>()
+                .join(" ");
+            assert!(
+                !glosses.contains("halogens") && !glosses.contains("Hawaiian"),
+                "{word}: {glosses}"
+            );
+        }
+        assert_eq!(
+            without_grammar_notes("not any; entity, negative pronoun"),
+            "not any"
+        );
     }
 }
