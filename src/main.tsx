@@ -145,8 +145,7 @@ export function PopupView() {
     } catch (e) { if (source) URL.revokeObjectURL(source); setError(asError(e)); }
   };
   const speak = async (text: string, owner: 'word' | 'popup') => { setError(''); try { await call('tts_speak', { text, owner }); } catch (e) { setError(asError(e)); } };
-  // A recording in the preferred accent beats synthesis; synthesis beats a recording in another accent.
-  const pronounce = () => accentAudio ? play(accentAudio) : canSpeak ? speak(word, 'word') : play();
+  const pronounce = () => canSpeak ? speak(word, 'word') : play();
   useEffect(() => { if (settings?.autoplay && state.status === 'ready' && (audio || canSpeak)) void pronounce(); }, [state.requestId, state.status, settings?.autoplay]);
   const toggle = async () => { try { await call('expand', { expanded: !state.expanded, reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches }); } catch (e) { setError(asError(e)); } };
   const save = async () => { try { await call('save_word', { save: !state.saved }); } catch (e) { setError(asError(e)); } };
@@ -197,7 +196,7 @@ export function PopupView() {
         <div className="phonetic-row">
           {state.expanded && primary && <span className="part">{primary.partOfSpeech}</span>}
           {sourced ? <span className="ipa" title={sourceName[sourced.source]}>{sourced.dialect && <span className="accent">{sourced.dialect.toUpperCase()}</span>}{sourced.source === 'generated' && <span className="approximate" aria-label="Generated pronunciation">≈</span>}{sourced.ipa}</span> : fallbackPhonetic && <span className="ipa">{fallbackPhonetic}</span>}
-          {(audio || canSpeak) && <button className="audio-button" onClick={() => void pronounce()} aria-label="Play pronunciation" title={accentAudio || !canSpeak ? 'Play recorded pronunciation' : 'Pronounce with Kokoro'}><Icon name="speaker"/></button>}
+          {(audio || canSpeak) && <button className="audio-button" onClick={() => void pronounce()} aria-label="Play pronunciation" title={canSpeak ? 'Pronounce with Kokoro' : 'Play recorded pronunciation'}><Icon name="speaker"/></button>}
         </div>
         {state.stale && <p className="notice">{state.message}</p>}
         {state.expanded ? <div className="details">

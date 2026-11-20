@@ -159,15 +159,16 @@ describe('popup', () => {
     expect(screen.queryByRole('button', { name: 'Play pronunciation' })).toBeNull();
   });
 
-  it('pronounces with a matching recording first, otherwise with Kokoro', async () => {
+  it('pronounces with Kokoro, falling back to the recording when speech is unavailable', async () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['tts-state']).toBeDefined());
     act(() => api.listeners['tts-state']({ payload: { status: 'ready', progress: 0, message: '', owner: '' } }));
-    send({ requestId: 1, status: 'ready', entries: [entry] });
+    const recorded = { ...entry, phonetics: [{ text: '', audio: 'https://api.dictionaryapi.dev/media/serendipity-us.mp3', sourceUrl: '' }] };
+    send({ requestId: 1, status: 'ready', entries: [recorded] });
     fireEvent.click(screen.getByRole('button', { name: 'Play pronunciation' }));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('tts_speak', { text: 'serendipity', owner: 'word' }));
-    const recorded = { ...entry, phonetics: [{ text: '', audio: 'https://api.dictionaryapi.dev/media/serendipity-us.mp3', sourceUrl: '' }] };
-    send({ requestId: 2, status: 'ready', entries: [recorded] });
+    expect(api.invoke).not.toHaveBeenCalledWith('pronunciation', expect.anything());
+    act(() => api.listeners['tts-state']({ payload: { status: 'notInstalled', progress: 0, message: '', owner: '' } }));
     fireEvent.click(screen.getByRole('button', { name: 'Play pronunciation' }));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('pronunciation', { url: recorded.phonetics[0].audio }));
   });
