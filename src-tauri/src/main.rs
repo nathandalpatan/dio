@@ -737,7 +737,15 @@ fn main() {
             };
             let directory = app.path().app_data_dir()?;
             let storage = Storage::open(&directory).map_err(std::io::Error::other)?;
-            let settings = storage.settings().map_err(std::io::Error::other)?;
+            let (settings, settings_error) = match storage.settings() {
+                Ok(settings) => (settings, None),
+                Err(error) => (
+                    Settings::default(),
+                    Some(format!(
+                        "{error} DIO is using default settings until you change one."
+                    )),
+                ),
+            };
             let dictionary = Dictionary::new().map_err(std::io::Error::other)?;
             let local_path = app.path().resolve(
                 "resources/english.sqlite3",
@@ -771,7 +779,7 @@ fn main() {
                 install: Mutex::new(None),
             });
             app.manage(Hooks::new(app.handle().clone(), settings.middle_click));
-            let errors: Vec<String> = settings::bindings(&settings)
+            let mut errors: Vec<String> = settings::bindings(&settings)
                 .into_iter()
                 .filter_map(|binding| {
                     app.global_shortcut()
@@ -781,10 +789,11 @@ fn main() {
                 })
                 .collect();
             if !errors.is_empty() {
-                *app.state::<AppState>().shortcut_error.lock().unwrap() = Some(format!(
-                    "{} Choose another shortcut in Settings.",
-                    errors.join(" ")
-                ));
+                errors.push("Choose another shortcut in Settings.".into());
+            }
+            errors.extend(settings_error);
+            if !errors.is_empty() {
+                *app.state::<AppState>().shortcut_error.lock().unwrap() = Some(errors.join(" "));
             }
             let settings_item = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let stop_item = MenuItem::with_id(app, "stop", "Stop reading", true, None::<&str>)?;
