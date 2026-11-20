@@ -19,7 +19,7 @@ Built with Rust and Tauri, DIO combines offline dictionary resources with online
 
 ## Getting Started
 
-1. Install DIO using the generated Windows installer.
+1. Download `DIO-setup.exe` from the [website](https://nathandalpatan.github.io/dio/) or the [latest release](https://github.com/nathandalpatan/dio/releases/latest) and run it. The installer is not code-signed yet, so if Windows SmartScreen warns you, click **More info**, then **Run anyway**.
 2. Highlight a word or short expression in any supported application.
 3. Press **Ctrl + Alt + D** to open the dictionary popup.
 4. Select **Expand** for additional definitions and pronunciation variants. Click the speaker beside the IPA to hear the word.
@@ -93,6 +93,19 @@ pnpm tauri build
 The Windows installer is generated in:
 
 `src-tauri/target/release/bundle/nsis/`
+
+### Release
+
+Bump the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`, build, then attach the installer twice: once as built and once as `DIO-setup.exe`, which the website's download button always fetches from the latest release.
+
+```bash
+cp src-tauri/target/release/bundle/nsis/DIO_X.Y.Z_x64-setup.exe DIO-setup.exe
+gh release create vX.Y.Z src-tauri/target/release/bundle/nsis/DIO_X.Y.Z_x64-setup.exe DIO-setup.exe
+```
+
+### Website
+
+The download page lives in `site/` and is plain HTML with no build step. `.github/workflows/pages.yml` publishes it to GitHub Pages when `site/` changes on `main`.
 
 ### Tests
 
