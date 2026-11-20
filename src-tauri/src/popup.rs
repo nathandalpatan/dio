@@ -105,16 +105,16 @@ fn resize_from_corner(start: Bounds, work: Bounds, size: (u32, u32), direction: 
     }
 }
 
-const EXPANDED: (f64, f64) = (720.0, 530.0);
+const EXPANDED: (f64, f64) = (514.0, 378.0);
 
 fn logical_size(expanded: bool, size: &str) -> (f64, f64) {
     if expanded {
         return EXPANDED;
     }
     match size {
-        "small" => (460.0, 410.0),
-        "large" => (600.0, 520.0),
-        _ => (530.0, 465.0),
+        "small" => (328.0, 293.0),
+        "large" => (429.0, 372.0),
+        _ => (378.0, 332.0),
     }
 }
 
@@ -354,7 +354,7 @@ mod tests {
             height: 1350,
         };
         let size = physical_size(EXPANDED, 1.5);
-        assert_eq!(size, (1080, 795));
+        assert_eq!(size, (771, 567));
         let (bounds, _) = place(
             Rect {
                 x: -250.0,
