@@ -194,6 +194,19 @@ pub const WORD_LIMITS: Limits = Limits {
 pub fn normalize(text: &str) -> Result<String, String> {
     normalize_with(text, WORD_LIMITS)
 }
+/// Double-clicking a word in some apps (Adobe Acrobat) also selects the punctuation after it.
+/// A trailing period is kept when the word has another one, as in "e.g." or "U.S.".
+pub fn trim_selected_word(text: &str) -> &str {
+    const PUNCTUATION: &[char] = &[
+        ',', ';', ':', '!', '?', '"', '“', '”', '‘', '’', '(', ')', '[', ']', '«', '»', '…',
+    ];
+    let text = text.trim().trim_matches(PUNCTUATION);
+    let text = match text.strip_suffix('.') {
+        Some(rest) if !rest.contains('.') => rest,
+        _ => text,
+    };
+    text.trim_matches(PUNCTUATION).trim()
+}
 pub fn normalize_with(text: &str, limits: Limits) -> Result<String, String> {
     let text = text.trim();
     if text.is_empty() {
@@ -230,6 +243,17 @@ mod tests {
     #[test]
     fn normalization_preserves_expressions() {
         assert_eq!(normalize("  ice cream  ").unwrap(), "ice cream");
+    }
+    #[test]
+    fn selected_words_lose_surrounding_punctuation() {
+        assert_eq!(trim_selected_word("acknowledged, "), "acknowledged");
+        assert_eq!(trim_selected_word("“Bennet,”"), "Bennet");
+        assert_eq!(trim_selected_word("(fortune)."), "fortune");
+        assert_eq!(trim_selected_word("wife."), "wife");
+        assert_eq!(trim_selected_word("e.g."), "e.g.");
+        assert_eq!(trim_selected_word("C++"), "C++");
+        assert_eq!(trim_selected_word("C#"), "C#");
+        assert_eq!(trim_selected_word("rock 'n' roll"), "rock 'n' roll");
     }
     #[test]
     fn rejects_invalid_selection() {

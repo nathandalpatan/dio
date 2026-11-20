@@ -389,7 +389,8 @@ async fn activate(app: AppHandle) {
     match result {
         Ok(selection) => {
             shared(&app).popup.lock().unwrap().anchor = selection.bounds;
-            let _ = lookup_inner(app.clone(), selection.text, true).await;
+            let word = model::trim_selected_word(&selection.text).to_owned();
+            let _ = lookup_inner(app.clone(), word, true).await;
         }
         Err(error) => {
             shared(&app).popup.lock().unwrap().anchor = None;
