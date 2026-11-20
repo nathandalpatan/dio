@@ -18,7 +18,7 @@ type Meaning = { partOfSpeech: string; definitions: Definition[]; synonyms: stri
 type Entry = { word: string; phonetic: string; phonetics: Phonetic[]; meanings: Meaning[]; origin: string; sourceUrls: string[]; license?: License };
 type Pronunciation = { ipa: string; dialect: string; source: string };
 type PopupState = { requestId: number; status: string; query: string; entries: Entry[]; message: string; stale: boolean; expanded: boolean; direction: string; canBack: boolean; saved: boolean; pronunciations?: Pronunciation[]; reading?: string };
-type Settings = { shortcut: string; keyboardEnabled: boolean; middleClick: boolean; theme: string; size: string; expanded: boolean; autoplay: boolean; pronunciation: string; startup: boolean; reducedMotion: boolean; accent?: string; ttsEnabled?: boolean; voice?: string; speed?: number; volume?: number; readerEnabled?: boolean; readerShortcut?: string; readerMaxChars?: number };
+type Settings = { shortcut: string; keyboardEnabled: boolean; middleClick: boolean; theme: string; size: string; expanded: boolean; autoplay: boolean; startup: boolean; reducedMotion: boolean; accent?: string; ttsEnabled?: boolean; voice?: string; speed?: number; volume?: number; readerEnabled?: boolean; readerShortcut?: string; readerMaxChars?: number };
 type TtsState = { status: string; progress: number; message: string; owner: string };
 type Voice = { id: string; name: string; accent: string };
 
@@ -124,9 +124,8 @@ export function PopupView() {
   const fallbackPhonetic = entry?.phonetics.find(item => item.text)?.text || entry?.phonetic;
   const availableAudio = entry?.phonetics.filter(item => item.audio) || [];
   const localePattern = (locale: string) => locale === 'us' ? /(?:^|[_/.-])us(?:[_/.-]|$)/i : /(?:^|[_/.-])(?:uk|gb)(?:[_/.-]|$)/i;
-  const preferredLocale = localePattern(settings?.pronunciation === 'us' ? 'us' : 'uk');
-  const audio = (settings?.pronunciation === 'first' ? availableAudio[0] : availableAudio.find(item => preferredLocale.test(item.audio))) || availableAudio[0];
   const accentAudio = availableAudio.find(item => localePattern(accent).test(item.audio));
+  const audio = accentAudio || availableAudio[0];
   const canSpeak = settings?.ttsEnabled !== false && usable(speech);
   const voice = voices.find(item => item.id === settings?.voice);
   const more = async (word: string) => { setError(''); try { await call('lookup', { word }); } catch (e) { setError(asError(e)); } };
@@ -312,7 +311,6 @@ function SettingsView() {
     </>,
     pronunciation: <>
       <Row label="Accent" hint="Shows IPA in this accent first and pronounces words with a matching voice. DIO only labels an accent when its source does."><select value={settings.accent || 'us'} onChange={e => void commit({ accent: e.target.value })}><option value="us">US English</option><option value="uk">UK English</option></select></Row>
-      <Row label="Recorded audio"><select value={settings.pronunciation} onChange={e => void commit({ pronunciation: e.target.value })}><option value="first">First available</option><option value="us">US English</option><option value="uk">UK English</option></select></Row>
       <Switch label="Auto-play pronunciation" checked={settings.autoplay} onChange={autoplay => void commit({ autoplay })}/>
       <hr/>
       <Switch label="Use the Kokoro voice for pronunciation and reading" checked={settings.ttsEnabled !== false} onChange={ttsEnabled => void commit({ ttsEnabled })}/>

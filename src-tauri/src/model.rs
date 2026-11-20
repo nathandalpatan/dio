@@ -10,7 +10,6 @@ pub struct Settings {
     pub size: String,
     pub expanded: bool,
     pub autoplay: bool,
-    pub pronunciation: String,
     pub startup: bool,
     pub reduced_motion: bool,
     pub accent: String,
@@ -32,7 +31,6 @@ impl Default for Settings {
             size: "standard".into(),
             expanded: false,
             autoplay: false,
-            pronunciation: "first".into(),
             startup: false,
             reduced_motion: false,
             accent: "us".into(),
@@ -50,9 +48,8 @@ impl Settings {
     pub fn validate(&self) -> Result<(), String> {
         if !["system", "light", "dark"].contains(&self.theme.as_str())
             || !["small", "standard", "large"].contains(&self.size.as_str())
-            || !["first", "us", "uk"].contains(&self.pronunciation.as_str())
         {
-            return Err("Invalid appearance or pronunciation preference.".into());
+            return Err("Invalid appearance preference.".into());
         }
         for shortcut in [&self.shortcut, &self.reader_shortcut] {
             if shortcut.len() > 100 || !shortcut.contains('+') {
@@ -257,8 +254,10 @@ mod tests {
     }
     #[test]
     fn older_settings_files_gain_speech_defaults() {
-        let settings: Settings =
-            serde_json::from_str(r#"{"shortcut":"Ctrl+Alt+D","theme":"dark"}"#).unwrap();
+        let settings: Settings = serde_json::from_str(
+            r#"{"shortcut":"Ctrl+Alt+D","theme":"dark","pronunciation":"uk"}"#,
+        )
+        .unwrap();
         assert_eq!(settings.theme, "dark");
         assert_eq!(settings.voice, "af_heart");
         assert_eq!(settings.reader_shortcut, "Ctrl+Alt+R");

@@ -13,7 +13,7 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async (name: string, lis
   return () => { delete api.listeners[name]; };
 }) }));
 
-const settings = { shortcut: 'Ctrl+Alt+D', keyboardEnabled: true, middleClick: false, theme: 'system', size: 'standard', expanded: false, autoplay: false, pronunciation: 'first', startup: false, reducedMotion: true };
+const settings = { shortcut: 'Ctrl+Alt+D', keyboardEnabled: true, middleClick: false, theme: 'system', size: 'standard', expanded: false, autoplay: false, startup: false, reducedMotion: true };
 const initial = { requestId: 0, status: 'idle', query: '', entries: [], message: '', stale: false, expanded: false, direction: 'se', canBack: false, saved: false };
 const entry = { word: 'serendipity', phonetic: '', phonetics: [], meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: 'A happy discovery.', example: '', synonyms: [], antonyms: [] }], synonyms: ['luck'], antonyms: [] }], origin: '', sourceUrls: [] };
 const send = (payload: object) => act(() => api.listeners['popup-state']({ payload: { ...initial, ...payload } }));
