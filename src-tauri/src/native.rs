@@ -349,10 +349,10 @@ impl Hooks {
                     match event {
                         InputEvent::Escape if v.load(Ordering::Relaxed) => {
                             if let Some(window) = app.get_webview_window("popup") {
-                                let _ = window.hide();
+                                let _ = crate::popup::hide(&window);
                             }
                             v.store(false, Ordering::Relaxed);
-                            crate::stop_popup_speech(&app);
+                            crate::stop_closed_popup_speech(&app);
                         }
                         InputEvent::Click { x, y, middle } => {
                             if v.load(Ordering::Relaxed) {
@@ -365,7 +365,7 @@ impl Hooks {
                                             || x >= position.x + size.width as i32
                                             || y >= position.y + size.height as i32
                                         {
-                                            let _ = window.hide();
+                                            let _ = crate::popup::hide(&window);
                                             v.store(false, Ordering::Relaxed);
                                             crate::stop_popup_speech(&app);
                                         }

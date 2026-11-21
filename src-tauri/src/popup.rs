@@ -282,6 +282,18 @@ pub fn show(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Hides the popup however it was shown. `show_without_focus` bypasses tao, whose `hide` then
+/// believes the window is already hidden and does nothing, so the window is hidden natively too.
+pub fn hide(window: &tauri::WebviewWindow) -> Result<(), String> {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+    window.hide().map_err(|e| e.to_string())?;
+    let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+    unsafe {
+        let _ = ShowWindow(HWND(hwnd.0 as *mut _), SW_HIDE);
+    }
+    Ok(())
+}
+
 /// Shows the popup while the source application keeps keyboard focus.
 pub fn show_without_focus(app: &AppHandle) -> Result<(), String> {
     use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};

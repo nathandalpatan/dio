@@ -234,6 +234,13 @@ fn stop_popup_speech(app: &AppHandle) {
     shared(app).tts.stop(Some("popup"));
 }
 
+/// Closing the popup with its button or Escape also stops reading aloud. A click elsewhere only
+/// hides it, so the reading can go on while you work in the app.
+fn stop_closed_popup_speech(app: &AppHandle) {
+    stop_popup_speech(app);
+    shared(app).tts.stop(Some("reader"));
+}
+
 fn dio_has_focus(app: &AppHandle, foreground: isize) -> bool {
     ["popup", "settings"].into_iter().any(|label| {
         app.get_webview_window(label)
@@ -424,11 +431,11 @@ async fn back(app: AppHandle) -> Result<(), String> {
 }
 #[tauri::command]
 fn close_popup(app: AppHandle) -> Result<(), String> {
-    stop_popup_speech(&app);
-    app.get_webview_window("popup")
-        .ok_or("Popup window is unavailable.")?
-        .hide()
-        .map_err(|e| e.to_string())?;
+    stop_closed_popup_speech(&app);
+    popup::hide(
+        &app.get_webview_window("popup")
+            .ok_or("Popup window is unavailable.")?,
+    )?;
     app.state::<Hooks>()
         .visible
         .store(false, std::sync::atomic::Ordering::Relaxed);
