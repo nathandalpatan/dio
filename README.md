@@ -42,6 +42,8 @@ Accent, voice, speed, volume, the read-aloud shortcut, and the selection limit a
 
 DIO retrieves selected text using Windows UI Automation. When that fails, it falls back to a clipboard copy: it sends **Ctrl + C**, or **Ctrl + Insert** in terminals, where Ctrl + C would interrupt the running program. Clipboard contents are backed up and restored. The classic console window and password fields are refused.
 
+Some terminal apps, such as Claude Code, handle the mouse themselves, so Windows Terminal has no selection to read. There, **Ctrl + Alt + D** looks up the word under the mouse pointer instead, so double-click a word and leave the pointer on it. Read-aloud still needs a terminal selection: hold **Shift** while selecting.
+
 Lookups use cached entries first. Otherwise DIO asks [Simple English Wiktionary](https://simple.wiktionary.org/), which writes definitions in plain English for learners, and the [Free Dictionary API](https://dictionaryapi.dev/) at the same time. The compact popup shows the Simple English definitions when they exist, and **Expand** adds the Free Dictionary API's fuller list of meanings below them. Other words use the Free Dictionary API's definitions. Words are pronounced by the Kokoro voice when it is installed, with the Free Dictionary API's recordings as the fallback. The bundled SQLite dictionary is used when offline or when neither has an entry. Names, DIO itself and ALL-CAPS acronyms always come from the bundled data.
 
 Pronunciation is resolved after the definition is shown, so missing data never blocks a definition. Sources are tried in this order:

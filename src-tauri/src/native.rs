@@ -1,4 +1,4 @@
-use crate::model::{normalize_with, Limits, Rect, Selection};
+use crate::model::{normalize_with, trim_word_at_point, Limits, Rect, Selection};
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -9,7 +9,7 @@ use tokio::sync::oneshot;
 use windows::{
     core::Interface,
     Win32::{
-        Foundation::HWND,
+        Foundation::{HWND, POINT},
         System::{
             Com::{
                 CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER,
@@ -19,9 +19,10 @@ use windows::{
         },
         UI::{
             Accessibility::{
-                CUIAutomation, IUIAutomation, IUIAutomationTextPattern, UIA_TextPatternId,
+                CUIAutomation, IUIAutomation, IUIAutomationTextPattern, IUIAutomationTextRange,
+                TextUnit_Word, UIA_TextPatternId,
             },
-            WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId},
+            WindowsAndMessaging::{GetCursorPos, GetForegroundWindow, GetWindowThreadProcessId},
         },
     },
 };
@@ -135,10 +136,10 @@ unsafe fn read_selection(
             .CurrentAutomationId()
             .ok()
             .is_some_and(|id| id.to_string().to_ascii_lowercase().contains("terminal"))
-            || element
-                .CurrentClassName()
-                .ok()
-                .is_some_and(|name| name.to_string().to_ascii_lowercase().contains("xterm"));
+            || element.CurrentClassName().ok().is_some_and(|name| {
+                let name = name.to_string();
+                name == "TermControl" || name.to_ascii_lowercase().contains("xterm")
+            });
         if element
             .CurrentIsPassword()
             .map_err(|e| e.to_string())?
@@ -163,45 +164,22 @@ unsafe fn read_selection(
                         .to_string();
                     if !text.trim().is_empty() {
                         let text = normalize_with(&text, limits)?;
-                        let bounds = range.GetBoundingRectangles().ok().and_then(|array| {
-                            use windows::Win32::System::Ole::{
-                                SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound,
-                                SafeArrayUnaccessData,
-                            };
-                            let mut result = None;
-                            if !array.is_null()
-                                && SafeArrayGetLBound(array, 1)
-                                    .ok()
-                                    .zip(SafeArrayGetUBound(array, 1).ok())
-                                    .is_some_and(|(lower, upper)| upper - lower >= 3)
-                            {
-                                let mut data = std::ptr::null_mut();
-                                if SafeArrayAccessData(array, &mut data).is_ok() {
-                                    let values = std::slice::from_raw_parts(data as *const f64, 4);
-                                    if values.iter().all(|v| v.is_finite())
-                                        && values[2] > 0.0
-                                        && values[3] > 0.0
-                                    {
-                                        result = Some(Rect {
-                                            x: values[0],
-                                            y: values[1],
-                                            width: values[2],
-                                            height: values[3],
-                                        });
-                                    }
-                                    let _ = SafeArrayUnaccessData(array);
-                                }
-                            }
-                            if !array.is_null() {
-                                let _ = SafeArrayDestroy(array);
-                            }
-                            result
-                        });
+                        let bounds = range_bounds(&range);
                         if foreground() != original {
                             return Err("The active application changed. Try again.".into());
                         }
                         return Ok(Selection { text, bounds });
                     }
+                }
+            }
+            // An app that handles the mouse itself, such as Claude Code, leaves the terminal with
+            // no selection, but the pointer still rests on the word the user double-clicked.
+            if terminal && !limits.multiline {
+                if let Some(selection) = word_under_pointer(&pattern, limits) {
+                    if foreground() != original {
+                        return Err("The active application changed. Try again.".into());
+                    }
+                    return Ok(selection);
                 }
             }
         }
@@ -214,6 +192,57 @@ unsafe fn read_selection(
         };
     }
     Err("This application does not expose highlighted text to Windows accessibility. Try selecting text in another application.".into())
+}
+
+unsafe fn word_under_pointer(
+    pattern: &IUIAutomationTextPattern,
+    limits: Limits,
+) -> Option<Selection> {
+    let mut point = POINT::default();
+    GetCursorPos(&mut point).ok()?;
+    let range = pattern.RangeFromPoint(point).ok()?;
+    range.ExpandToEnclosingUnit(TextUnit_Word).ok()?;
+    let text = range
+        .GetText(limits.max_chars.saturating_mul(2).saturating_add(2) as i32)
+        .ok()?
+        .to_string();
+    let text = normalize_with(trim_word_at_point(&text), limits).ok()?;
+    Some(Selection {
+        text,
+        bounds: range_bounds(&range),
+    })
+}
+
+unsafe fn range_bounds(range: &IUIAutomationTextRange) -> Option<Rect> {
+    use windows::Win32::System::Ole::{
+        SafeArrayAccessData, SafeArrayGetLBound, SafeArrayGetUBound, SafeArrayUnaccessData,
+    };
+    let array = range.GetBoundingRectangles().ok()?;
+    let mut result = None;
+    if !array.is_null()
+        && SafeArrayGetLBound(array, 1)
+            .ok()
+            .zip(SafeArrayGetUBound(array, 1).ok())
+            .is_some_and(|(lower, upper)| upper - lower >= 3)
+    {
+        let mut data = std::ptr::null_mut();
+        if SafeArrayAccessData(array, &mut data).is_ok() {
+            let values = std::slice::from_raw_parts(data as *const f64, 4);
+            if values.iter().all(|v| v.is_finite()) && values[2] > 0.0 && values[3] > 0.0 {
+                result = Some(Rect {
+                    x: values[0],
+                    y: values[1],
+                    width: values[2],
+                    height: values[3],
+                });
+            }
+            let _ = SafeArrayUnaccessData(array);
+        }
+    }
+    if !array.is_null() {
+        let _ = SafeArrayDestroy(array);
+    }
+    result
 }
 
 #[derive(Clone, Copy)]

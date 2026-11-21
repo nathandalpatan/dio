@@ -207,6 +207,13 @@ pub fn trim_selected_word(text: &str) -> &str {
     };
     text.trim_matches(PUNCTUATION).trim()
 }
+/// A terminal's word at a point can include its neighbours: spaces, bullets and box lines.
+/// `+` and `#` stay for words such as C++ and C#; periods are settled by `trim_selected_word`.
+pub fn trim_word_at_point(text: &str) -> &str {
+    trim_selected_word(
+        text.trim_matches(|c: char| !(c.is_alphanumeric() || matches!(c, '+' | '#' | '.'))),
+    )
+}
 pub fn normalize_with(text: &str, limits: Limits) -> Result<String, String> {
     let text = text.trim();
     if text.is_empty() {
@@ -254,6 +261,16 @@ mod tests {
         assert_eq!(trim_selected_word("C++"), "C++");
         assert_eq!(trim_selected_word("C#"), "C#");
         assert_eq!(trim_selected_word("rock 'n' roll"), "rock 'n' roll");
+    }
+    #[test]
+    fn terminal_words_lose_their_neighbours() {
+        assert_eq!(trim_word_at_point("· summary          "), "summary");
+        assert_eq!(trim_word_at_point("it.                 "), "it");
+        assert_eq!(trim_word_at_point("│ bisect "), "bisect");
+        assert_eq!(trim_word_at_point("`idempotent`"), "idempotent");
+        assert_eq!(trim_word_at_point("C++ "), "C++");
+        assert_eq!(trim_word_at_point("e.g. "), "e.g.");
+        assert_eq!(trim_word_at_point("  ──  "), "");
     }
     #[test]
     fn rejects_invalid_selection() {
