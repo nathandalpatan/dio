@@ -52,6 +52,8 @@ impl Drop for SavedHandle {
 
 type ClipboardBackup = Vec<(u32, Vec<u8>)>;
 
+pub const TERMINAL_NO_SELECTION: &str = "The terminal has no selection.";
+
 fn restorable_format(format: u32) -> bool {
     !matches!(
         format,
@@ -325,7 +327,13 @@ pub fn capture(
             }
             if Instant::now() >= deadline {
                 if changed == sequence {
-                    return Err("Copy timed out.".into());
+                    // Windows Terminal copies nothing when it has no selection of its own, which
+                    // happens when an app such as Claude Code handles the mouse itself.
+                    return Err(if copy == CopyKey::Insert {
+                        TERMINAL_NO_SELECTION.into()
+                    } else {
+                        "Copy timed out.".into()
+                    });
                 }
                 break;
             }

@@ -267,6 +267,9 @@ fn capture_message(error: &str) -> String {
         return error.to_owned();
     }
     match error {
+        clipboard::TERMINAL_NO_SELECTION => {
+            "The terminal has no selection. If the app in it handles the mouse itself, like Claude Code, hold Shift while you select, then try again."
+        }
         "Copy timed out." | "Copy did not provide text." => {
             "The app didn't copy the selection. Make sure the text is still highlighted and try again."
         }
@@ -877,6 +880,7 @@ mod tests {
     #[test]
     fn capture_failures_explain_what_to_do() {
         assert!(capture_message("Copy timed out.").contains("didn't copy"));
+        assert!(capture_message(clipboard::TERMINAL_NO_SELECTION).contains("hold Shift"));
         assert!(
             capture_message("Clipboard formats cannot be safely preserved.").contains("screenshot")
         );
