@@ -41,17 +41,63 @@
   context freed; a ground a fragment drives stays live (at 1 device pixel) only near the screen. So
   the page needs one or two contexts. See grounds() below.
 */
+type Opts = Record<string, unknown>;
+/** what a fragment's script returns */
+export interface Controller { destroy(): void; pause?(): void; resume?(): void; restart?(): void; hold?(): void; }
+type Fragment = (root: HTMLElement, opts: Opts) => Controller | void;
+export interface Pausable { pause(): void; resume(): void; }
+export interface LoopControl { destroy(): void; pause(): void; resume(): void; restart(): void; hold(): void; }
+export interface LoopApi {
+  readonly alive: boolean;
+  readonly time: number;
+  wait(ms: number): Promise<void>;
+  tween(ms: number, fn: (k: number) => void, ease?: (t: number) => number): Promise<void>;
+}
+export interface LoopOptions { still?: () => void; rest?: number; rootMargin?: string; cycles?: number; pause?: boolean; }
+
+/* assets/effects/fx.js, loaded by system.js when the page has grounds */
+type Palette = Record<string, unknown>;
+interface GroundSpec { palette: Palette; params: Record<string, unknown>; seed: unknown; }
+export interface FxGround {
+  id?: string;
+  el?: HTMLElement;
+  baked?: boolean;
+  params?: { speed?: number; [k: string]: unknown };
+  palette?: unknown;
+  seed?: unknown;
+  info?: unknown;
+  pause(): void;
+  resume(): void;
+  set(next: Record<string, unknown>): unknown;
+  setPalette?(palette: Palette): unknown;
+  destroy(): void;
+}
+export interface Fx {
+  config?: { maxDpr?: number | null; adaptive?: boolean; maxLive?: number };
+  load(id: string | undefined): Promise<unknown>;
+  mount(el: HTMLElement, id: string | undefined, spec: GroundSpec): Promise<FxGround>;
+  mountAll(root: ParentNode): Promise<unknown>;
+  get(el: HTMLElement): FxGround | null | undefined;
+  readPalette(el: HTMLElement): Palette;
+  normalizePalette(palette: Palette): Palette;
+  fallbackCSS?(palette: Palette): string;
+}
+
+declare global {
+  interface HTMLElement { __ui?: Controller | null; __fx?: FxGround; }
+}
+
 const BASE = new URL('./', import.meta.url);
 const reducedQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
 export const reduced = () => !!(reducedQuery && reducedQuery.matches);
 /** true when el sits under data-ui-still: it shows its finished picture and never cycles */
-export const isStill = el => !!(el && el.closest && el.closest('[data-ui-still]'));
+export const isStill = (el: Element | null) => !!(el && el.closest('[data-ui-still]'));
 
-const css = new Map();
-function link(href) {
+const css = new Map<string, Promise<void>>();
+function link(href: string) {
   if (!css.has(href)) {
-    const done = [...document.querySelectorAll('link[rel="stylesheet"]')].some(l => l.href === href);
-    css.set(href, done ? Promise.resolve() : new Promise(res => {
+    const done = [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].some(l => l.href === href);
+    css.set(href, done ? Promise.resolve() : new Promise<void>(res => {
       const l = document.createElement('link');
       l.rel = 'stylesheet';
       l.href = href;
@@ -59,17 +105,17 @@ function link(href) {
       document.head.appendChild(l);
     }));
   }
-  return css.get(href);
+  return css.get(href)!;
 }
-const cache = new Map();
-const fetchText = url => {
+const cache = new Map<string, Promise<string>>();
+const fetchText = (url: string) => {
   if (!cache.has(url)) cache.set(url, fetch(url).then(r => { if (!r.ok) throw new Error(`ui: ${r.status} ${url}`); return r.text(); }));
-  return cache.get(url);
+  return cache.get(url)!;
 };
 
 let uid = 0;
 // SVG ids (gradients, masks) must be unique per copy of a fragment
-function uniqueIds(root) {
+function uniqueIds(root: Element) {
   const n = ++uid;
   for (const el of root.querySelectorAll('[id]')) {
     const old = el.id, id = `${old}-u${n}`;
@@ -85,18 +131,18 @@ function uniqueIds(root) {
   }
 }
 
-const mods = new Map();
-function script(name) {
-  if (!mods.has(name)) mods.set(name, import(new URL(`${name}/fragment.js`, BASE).href).then(m => m.default));
-  return mods.get(name);
+const mods = new Map<string, Promise<Fragment>>();
+function script(name: string) {
+  if (!mods.has(name)) mods.set(name, import(new URL(`${name}/fragment.js`, BASE).href).then((m: { default: Fragment }) => m.default));
+  return mods.get(name)!;
 }
 
 /** fill el with the fragment `name` and start it; returns its controller (or null) */
-export async function load(el, name, opts = {}) {
+export async function load(el: HTMLElement, name: string, opts: Opts = {}): Promise<Controller | null> {
   if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`ui: bad fragment name "${name}"`);
   const base = new URL(`${name}/`, BASE);
   const [meta, html] = await Promise.all([
-    fetchText(new URL('meta.json', base).href).then(JSON.parse),
+    fetchText(new URL('meta.json', base).href).then(t => JSON.parse(t) as { js?: boolean }),
     fetchText(new URL('fragment.html', base).href),
     link(new URL('base.css', BASE).href),
     link(new URL('fragment.css', base).href),
@@ -104,23 +150,24 @@ export async function load(el, name, opts = {}) {
   // the kit's sample marks live in assets/ui/icons: a fragment pasted into the project's index.html asks for assets/ui/icons/ (from the project root),
   // and one loaded here is pointed at the kit's own folder, whatever page loads it
   el.innerHTML = html.replace(/src="(?:assets\/ui\/)?icons\//g, `src="${new URL('icons/', BASE).href}`);
-  const root = el.querySelector('[data-ui]') || el.firstElementChild;
+  const root = (el.querySelector('[data-ui]') || el.firstElementChild) as HTMLElement;
   uniqueIds(root);
   return meta.js ? start(root, opts) : null;
 }
 
 /** start a fragment already in the page (its markup pasted from fragment.html and edited to the
     client's content); links its stylesheets, reads data-ui-opts='{...}' on the root for its options */
-export async function start(root, opts) {
+export async function start(root: HTMLElement, opts?: Opts): Promise<Controller | null> {
   if (root.__ui) return root.__ui;
   const name = root.dataset.ui;
-  if (!/^[a-z0-9-]+$/.test(name || '')) return null;
+  if (!name || !/^[a-z0-9-]+$/.test(name)) return null;
   if (!opts) { try { opts = root.dataset.uiOpts ? JSON.parse(root.dataset.uiOpts) : {}; } catch { opts = {}; } }
   await Promise.all([link(new URL('base.css', BASE).href), link(new URL(`${name}/fragment.css`, BASE).href)]);
   const init = await script(name).catch(() => null);
   if (!init) return null;
-  root.__ui = init(root, opts) || { destroy() {} };
-  return root.__ui;
+  const ctl = init(root, opts!) || { destroy() {} };
+  root.__ui = ctl;
+  return ctl;
 }
 
 /*
@@ -130,10 +177,10 @@ export async function start(root, opts) {
   A page with no data-ui-loop anywhere leaves every fragment to loop (a gallery of the kit).
 */
 const LOOPS = '[data-ui-loop], [data-ui-cycles]';
-export function plan(root = document) {
-  const doc = root.ownerDocument || root;
-  if (!doc.querySelector || !doc.querySelector('[data-ui-loop]')) return;
-  const kind = doc.querySelector('meta[name="site-kind"]');
+export function plan(root: Document | Element = document) {
+  const doc = (root.ownerDocument || root) as Document;
+  if (!doc.querySelector('[data-ui-loop]')) return;
+  const kind = doc.querySelector<HTMLMetaElement>('meta[name="site-kind"]');
   const other = (doc.documentElement && doc.documentElement.dataset.type === 'place') || (!!kind && kind.content.trim().toLowerCase() === 'other');
   const phone = other || (typeof matchMedia === 'function' && matchMedia('(max-width: 639px)').matches);
   for (const el of root.querySelectorAll('[data-ui-load], [data-ui]')) {
@@ -143,24 +190,24 @@ export function plan(root = document) {
 }
 
 /* every placeholder resolves on its own: a still one is held the moment its own load is done */
-export function loadAll(root = document) {
+export function loadAll(root: Document | Element = document) {
   plan(root);
-  return Promise.all([...root.querySelectorAll('[data-ui-load]')].map(el => {
-    let opts = {};
+  return Promise.all([...root.querySelectorAll<HTMLElement>('[data-ui-load]')].map(el => {
+    let opts: Opts = {};
     try { opts = el.dataset.uiOpts ? JSON.parse(el.dataset.uiOpts) : {}; } catch (e) { console.warn('ui: bad data-ui-opts', el); }
-    return load(el, el.dataset.uiLoad, opts).catch(e => { console.warn(e); return null; });
+    return load(el, el.dataset.uiLoad!, opts).catch(e => { console.warn(e); return null; });
   }));
 }
-export function startAll(root = document) {
+export function startAll(root: Document | Element = document) {
   plan(root);
-  return Promise.all([...root.querySelectorAll('[data-ui]')].map(el => start(el)));
+  return Promise.all([...root.querySelectorAll<HTMLElement>('[data-ui]')].map(el => start(el)));
 }
 
 /** hold a fragment (its placeholder or root) on its finished picture from now on; it still plays while
     the pointer is on its card */
-export function hold(el) {
+export function hold(el: HTMLElement) {
   el.setAttribute('data-ui-still', '');
-  const root = el.matches('[data-ui]') ? el : el.querySelector('[data-ui]');
+  const root = el.matches('[data-ui]') ? el : el.querySelector<HTMLElement>('[data-ui]');
   if (!root || !root.__ui) return;
   if (root.__ui.hold) root.__ui.hold();
   else { root.__ui.destroy(); root.__ui = null; }
@@ -169,10 +216,11 @@ export function hold(el) {
 /* ---------------------------------------------------------------- pause button */
 const ICON_PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.25" y="3.25" width="2.75" height="9.5" rx="0.9"/><rect x="9" y="3.25" width="2.75" height="9.5" rx="0.9"/></svg>';
 const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.25 3.7v8.6c0 .62.68 1 1.2.66l6.5-4.3c.47-.31.47-1 0-1.32l-6.5-4.3c-.52-.34-1.2.04-1.2.66Z"/></svg>';
-const boxes = new WeakMap();
-const boxOf = root => root.closest('[data-ui-pause-host], .panel__screen, .panel, .frame') || root.parentElement;
+interface PauseButton { btn: HTMLButtonElement; ctls: Set<Pausable>; paused: boolean; off: () => void; }
+const boxes = new WeakMap<Element, PauseButton>();
+const boxOf = (root: Element) => root.closest<HTMLElement>('[data-ui-pause-host], .panel__screen, .panel, .frame') || root.parentElement;
 // a card's title: the first h3 or .card__title in the card that is not inside its panel
-const titleOf = card => [...card.querySelectorAll('h3, .card__title')].find(t => !t.closest('.panel, .frame, .ui') && t.closest('.card') === card);
+const titleOf = (card: Element) => [...card.querySelectorAll('h3, .card__title')].find(t => !t.closest('.panel, .frame, .ui') && t.closest('.card') === card);
 
 /**
   pausable(box, ctrl): the same pause button for anything else that moves on its own in a panel for
@@ -186,34 +234,34 @@ const titleOf = card => [...card.querySelectorAll('h3, .card__title')].find(t =>
   - a .panel or .frame outside a card: its bottom-right corner (keep that corner clear);
   - a fragment with no panel round it: under its bottom-right corner, in 44px kept free below it.
 */
-export function pausable(box, ctl) {
+export function pausable(box: HTMLElement | null, ctl: Pausable): () => void {
   if (!box || reduced()) return () => {};
   const explicit = box.matches('[data-ui-pause-host]');
-  const card = explicit ? null : box.closest('.card');
+  const card = explicit ? null : box.closest<HTMLElement>('.card');
   const title = card ? titleOf(card) : null;
-  const key = title ? card : box;
+  const key = title && card ? card : box;
   let p = boxes.get(key);
   if (!p) {
-    if (box.querySelector(':scope > .loop-pause') || (title && card.querySelector(':scope > .loop-pause'))) return () => {};   // the page put its own there
+    if (box.querySelector(':scope > .loop-pause') || (title && card && card.querySelector(':scope > .loop-pause'))) return () => {};   // the page put its own there
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'ui-pause loop-pause';
-    p = { btn, ctls: new Set(), paused: false, off: () => {} };
+    const made: PauseButton = p = { btn, ctls: new Set(), paused: false, off: () => {} };
     const show = () => {
-      const label = `${p.paused ? 'Play' : 'Pause'} animation`;
-      btn.innerHTML = p.paused ? ICON_PLAY : ICON_PAUSE;
+      const label = `${made.paused ? 'Play' : 'Pause'} animation`;
+      btn.innerHTML = made.paused ? ICON_PLAY : ICON_PAUSE;
       btn.setAttribute('aria-label', label);
       btn.title = label;
-      btn.classList.toggle('is-paused', p.paused);
+      btn.classList.toggle('is-paused', made.paused);
     };
-    btn.addEventListener('click', () => { p.paused = !p.paused; show(); p.ctls.forEach(c => (p.paused ? c.pause() : c.resume())); });
+    btn.addEventListener('click', () => { made.paused = !made.paused; show(); made.ctls.forEach(c => (made.paused ? c.pause() : c.resume())); });
     show();
-    if (title) {
+    if (title && card) {
       // beside the title: top on the title's first line, right on the text column's right edge
       title.classList.add('ui-pause-beside');
       btn.classList.add('ui-pause--title');
       const place = () => {
-        const c = card.getBoundingClientRect(), t = title.getBoundingClientRect(), col = title.parentElement;
+        const c = card.getBoundingClientRect(), t = title.getBoundingClientRect(), col = title.parentElement!;
         const cs = getComputedStyle(col), r = col.getBoundingClientRect();
         const colRight = r.right - (parseFloat(cs.paddingRight) || 0) - (parseFloat(cs.borderRightWidth) || 0);
         const lh = parseFloat(getComputedStyle(title).lineHeight) || 26;
@@ -226,7 +274,7 @@ export function pausable(box, ctl) {
       place();
       const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null;
       if (ro) { ro.observe(card); ro.observe(title); }
-      p.off = () => { if (ro) ro.disconnect(); };   // the title keeps its 44px: no reflow when the button goes
+      made.off = () => { if (ro) ro.disconnect(); };   // the title keeps its 44px: no reflow when the button goes
     } else {
       const bare = !explicit && !box.matches('.panel__screen, .panel, .frame');
       if (getComputedStyle(box).position === 'static') box.style.position = 'relative';
@@ -241,41 +289,43 @@ export function pausable(box, ctl) {
   }
   p.ctls.add(ctl);
   if (p.paused) ctl.pause();
-  return () => { p.ctls.delete(ctl); if (!p.ctls.size) { p.btn.remove(); p.off(); boxes.delete(key); } };
+  const own = p;
+  return () => { own.ctls.delete(ctl); if (!own.ctls.size) { own.btn.remove(); own.off(); boxes.delete(key); } };
 }
-const addPause = (root, ctl) => pausable(boxOf(root), ctl);
+const addPause = (root: Element, ctl: Pausable) => pausable(boxOf(root), ctl);
 
 /* ---------------------------------------------------------------- the finished picture, tidied */
 /* A finished picture keeps some text hidden on purpose (the other state of a button, a tag shown on hover, a label cut where it
    would meet the edge). That text is hidden from assistive technology too (aria-hidden), so nothing in a fragment reads as
    present but invisible; it is taken off again when the fragment starts to move. */
-const tidying = new WeakMap();
-function sweep(root) {
-  const walk = (el, up) => {
+const tidying = new WeakMap<Element, number>();
+function sweep(root: Element) {
+  const walk = (el: HTMLElement, up: boolean) => {
     if (typeof SVGElement === 'function' && el instanceof SVGElement) return;
     const cs = getComputedStyle(el);
     const self = cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.05;
     if (self && !up && cs.display !== 'none' && el.textContent.trim()) {
       if (!el.hasAttribute('aria-hidden')) { el.setAttribute('aria-hidden', 'true'); el.dataset.uiAh = ''; }
     } else if (el.dataset.uiAh != null && !(self && !up)) { el.removeAttribute('aria-hidden'); delete el.dataset.uiAh; }
-    for (const c of el.children) walk(c, up || self);
+    for (const c of el.children) walk(c as HTMLElement, up || self);
   };
-  for (const c of root.children) walk(c, false);
+  for (const c of root.children) walk(c as HTMLElement, false);
 }
-function tidy(root) {
+function tidy(root: Element) {
   if (tidying.has(root)) return;
   tidying.set(root, requestAnimationFrame(() => requestAnimationFrame(() => { tidying.delete(root); if (root.isConnected) sweep(root); })));
 }
-function untidy(root) {
-  if (tidying.has(root)) { cancelAnimationFrame(tidying.get(root)); tidying.delete(root); }
-  for (const el of root.querySelectorAll('[data-ui-ah]')) { el.removeAttribute('aria-hidden'); delete el.dataset.uiAh; }
+function untidy(root: Element) {
+  if (tidying.has(root)) { cancelAnimationFrame(tidying.get(root)!); tidying.delete(root); }
+  for (const el of root.querySelectorAll<HTMLElement>('[data-ui-ah]')) { el.removeAttribute('aria-hidden'); delete el.dataset.uiAh; }
 }
 
 /* ---------------------------------------------------------------- the loop */
 const STOP = Symbol('stop'), AGAIN = Symbol('again');
 // the card (or tile, or link) a fragment sits in: the pointer entering it restarts the fragment's cycle
-const hostOf = root => root.closest('[data-ui-hover], .card, .tile, .menu-card, a') || boxOf(root);
-const hosted = new WeakMap();
+const hostOf = (root: Element) => root.closest<HTMLElement>('[data-ui-hover], .card, .tile, .menu-card, a') || boxOf(root);
+interface LoopRec { root: Element; running(): boolean; restart(): void; hover(on: boolean): void; }
+const hosted = new WeakMap<Element, Set<LoopRec>>();
 const QUARTER = 800;        // a restart within this long of a cycle's start changes nothing (no stutter)
 
 /* one set of listeners per card: the pointer (a mouse or pen, never a tap) or keyboard focus entering it
@@ -283,25 +333,26 @@ const QUARTER = 800;        // a restart within this long of a cycle's start cha
    (the last in the page, the dialog over a window) while the pointer stays, and rests when it leaves.
    Keyboard focus plays it once only: a held fragment never loops with no pause button while a link in
    its card keeps focus */
-function hostListen(host, rec) {
+function hostListen(host: HTMLElement, rec: LoopRec) {
   let set = hosted.get(host);
   if (!set) {
-    set = new Set();
-    hosted.set(host, set);
-    const enter = pointer => {
-      const live = [...set].filter(r => r.running());
+    const all = set = new Set();
+    hosted.set(host, all);
+    const enter = (pointer: boolean) => {
+      const live = [...all].filter(r => r.running());
       if (live.length) { live.forEach(r => r.restart()); return; }
-      const top = [...set].sort((a, b) => (a.root.compareDocumentPosition(b.root) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)).pop();
+      const top = [...all].sort((a, b) => (a.root.compareDocumentPosition(b.root) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)).pop();
       if (top) (pointer ? top.hover(true) : top.restart());
     };
-    const leave = () => set.forEach(r => r.hover(false));
+    const leave = () => all.forEach(r => r.hover(false));
     host.addEventListener('pointerenter', e => { if (e.pointerType !== 'touch') enter(true); });
     host.addEventListener('pointerleave', leave);
-    host.addEventListener('focusin', e => { if (!e.target.closest('.loop-pause')) enter(false); });   // not the pause button itself
-    host.addEventListener('focusout', e => { if (!host.contains(e.relatedTarget)) leave(); });
+    host.addEventListener('focusin', e => { if (!(e.target as Element).closest('.loop-pause')) enter(false); });   // not the pause button itself
+    host.addEventListener('focusout', e => { if (!host.contains(e.relatedTarget as Node | null)) leave(); });
   }
   set.add(rec);
-  return () => set.delete(rec);
+  const own = set;
+  return () => own.delete(rec);
 }
 
 /**
@@ -326,59 +377,59 @@ function hostListen(host, rec) {
     no button (the page runs its own). Page loops use this as well:
     ui.loop(el, async api => { ... }, { still: () => showFinished(el) })
 */
-export function loop(root, cycle, { still, rest = 600, rootMargin = '0px', cycles, pause = true } = {}) {
+export function loop(root: HTMLElement, cycle: (api: LoopApi) => Promise<void>, { still, rest = 600, rootMargin = '0px', cycles, pause = true }: LoopOptions = {}): LoopControl {
   const show = () => { if (still) still(); tidy(root); };
-  const setHeld = on => root.classList.toggle('is-ui-held', on);
+  const setHeld = (on: boolean) => root.classList.toggle('is-ui-held', on);
   if (reduced()) {
     setHeld(true);
     show();
     const none = () => {};
     return { destroy: none, pause: none, resume: none, restart: none, hold: none };
   }
-  const cyclesHost = root.closest('[data-ui-cycles]');
-  const maxCycles = cycles || (cyclesHost ? Math.max(1, parseInt(cyclesHost.dataset.uiCycles, 10) || 2) : 0);
-  let mode = isStill(root) ? 'held' : 'run';
+  const cyclesHost = root.closest<HTMLElement>('[data-ui-cycles]');
+  const maxCycles = cycles || (cyclesHost ? Math.max(1, parseInt(cyclesHost.dataset.uiCycles ?? '', 10) || 2) : 0);
+  let mode: 'held' | 'run' = isStill(root) ? 'held' : 'run';
   let want = mode === 'run' ? Infinity : 0;      // cycles still to play
   let needRest = mode === 'run' && rest > 0;
-  let visible = false, stopped = false, paused = false, hovering = false, unpause = null;
+  let visible = false, stopped = false, paused = false, hovering = false, unpause: (() => void) | null = null;
   let gen = 0, cur = 0, began = 0, played = 0;     // gen moves on at every restart; cur is the cycle's own
   let stalled = false, warned = false;             // a cycle that waited off screen or paused is not measured
-  const queue = [], aborts = new Set(), wake = [];
+  const queue: (() => void)[] = [], aborts = new Set<(why: symbol) => void>(), wake: (() => void)[] = [];
   const active = () => visible && !paused && !document.hidden && !stopped;
-  const flush = () => { if (!active()) return; while (queue.length) queue.shift()(); };
-  const abort = why => { gen++; const fs = [...aborts]; aborts.clear(); queue.length = 0; fs.forEach(f => f(why)); };
-  const kick = () => { while (wake.length) wake.shift()(); };
+  const flush = () => { if (!active()) return; while (queue.length) queue.shift()!(); };
+  const abort = (why: symbol) => { gen++; const fs = [...aborts]; aborts.clear(); queue.length = 0; fs.forEach(f => f(why)); };
+  const kick = () => { while (wake.length) wake.shift()!(); };
   // the cycle's own clock: the waits of a cycle add up on a timeline that starts when the cycle starts,
   // and each wait ends at its place on that timeline, not a delay after the last one. So a busy main
   // thread (a CPU renderer, six loops on one page, a scroll) cannot stretch the cycle: a wait that
   // comes late is shortened and the cycle catches up. Time spent off screen or paused is not counted.
   let t0 = 0, planned = 0, lost = 0;
   const LAG = 1200;       // behind by more than this (a stalled tab): give up catching up and go on from here
-  const gate = () => new Promise((res, rej) => {
+  const gate = () => new Promise<void>((res, rej) => {
     if (stopped) return rej(STOP);
     if (cur !== gen) return rej(AGAIN);
     if (active()) return res();
     stalled = true;
     const from = performance.now();
-    const ab = why => rej(why);
+    const ab = (why: symbol) => rej(why);
     aborts.add(ab);
     queue.push(() => { aborts.delete(ab); lost += performance.now() - from; res(); });
   });
-  const sleep = ms => new Promise((res, rej) => {
-    const ab = why => { clearTimeout(t); rej(why); };
+  const sleep = (ms: number) => new Promise<void>((res, rej) => {
+    const ab = (why: symbol) => { clearTimeout(t); rej(why); };
     const t = setTimeout(() => { aborts.delete(ab); res(); }, ms);
     aborts.add(ab);
   });
   // behind the timeline: give the page one frame (at most 50 ms) to paint what the last step changed
-  const frame = () => new Promise((res, rej) => {
+  const frame = () => new Promise<void>((res, rej) => {
     let done = false, t = 0;
     const go = () => { if (done) return; done = true; clearTimeout(t); aborts.delete(ab); res(); };
-    const ab = why => { done = true; clearTimeout(t); rej(why); };
+    const ab = (why: symbol) => { done = true; clearTimeout(t); rej(why); };
     aborts.add(ab);
     t = setTimeout(go, 50);
     requestAnimationFrame(go);
   });
-  const api = {
+  const api: LoopApi = {
     get alive() { return !stopped; },
     /** the cycle's own clock: ms of cycle time since it started (on screen and not paused) */
     get time() { return began ? performance.now() - t0 - lost : 0; },
@@ -396,11 +447,11 @@ export function loop(root, cycle, { still, rest = 600, rootMargin = '0px', cycle
     async tween(ms, fn, ease = t => 1 - Math.pow(1 - t, 3)) {
       await gate();
       if (began) planned += ms;
-      await new Promise((res, rej) => {
-        let done = 0, last = null, dead = false;
-        const ab = why => { dead = true; rej(why); };
+      await new Promise<void>((res, rej) => {
+        let done = 0, last: number | null = null, dead = false;
+        const ab = (why: symbol) => { dead = true; rej(why); };
         aborts.add(ab);
-        const step = now => {
+        const step = (now: number) => {
           if (dead) return;
           if (!active()) { last = null; gate().then(() => requestAnimationFrame(step), e => { aborts.delete(ab); rej(e); }); return; }
           if (last != null) done += now - last;
@@ -425,8 +476,8 @@ export function loop(root, cycle, { still, rest = 600, rootMargin = '0px', cycle
   const onVis = () => flush();
   document.addEventListener('visibilitychange', onVis);
   // effects inside the fragment (the voice orb) stop and start with it
-  const inner = on => root.querySelectorAll('[data-fx-mounted]').forEach(el => { try { on ? el.__fx?.resume() : el.__fx?.pause(); } catch {} });
-  const ctl = {
+  const inner = (on: boolean) => root.querySelectorAll<HTMLElement>('[data-fx-mounted]').forEach(el => { try { on ? el.__fx?.resume() : el.__fx?.pause(); } catch {} });
+  const ctl: LoopControl = {
     pause() { paused = true; if (began) { abort(AGAIN); began = 0; show(); if (mode === 'run' && rest > 0) needRest = true; } root.classList.add('is-ui-paused'); inner(false); root.dispatchEvent(new CustomEvent('ui-pause', { detail: { paused: true } })); },
     resume() { paused = false; root.classList.remove('is-ui-paused'); inner(true); root.dispatchEvent(new CustomEvent('ui-pause', { detail: { paused: false } })); flush(); },
     /** from the top: a loop starts its cycle again at once; a held fragment plays it once */
@@ -463,7 +514,7 @@ export function loop(root, cycle, { still, rest = 600, rootMargin = '0px', cycle
       show();
     },
   };
-  const rec = {
+  const rec: LoopRec = {
     root,
     running: () => !stopped && mode === 'run',
     restart: () => ctl.restart(),
@@ -474,13 +525,13 @@ export function loop(root, cycle, { still, rest = 600, rootMargin = '0px', cycle
       // leaving: the cycle under way plays to its end and rests on the finished picture
     },
   };
-  const unlisten = hostListen(hostOf(root), rec);
+  const unlisten = hostListen(hostOf(root)!, rec);
   setHeld(mode === 'held');
   show();
   (async () => {
     for (;;) {
       if (stopped) return;
-      if (want <= 0) { setHeld(true); await new Promise(r => wake.push(r)); continue; }
+      if (want <= 0) { setHeld(true); await new Promise<void>(r => wake.push(r)); continue; }
       cur = gen;
       setHeld(false);
       try {
@@ -522,8 +573,8 @@ export function loop(root, cycle, { still, rest = 600, rootMargin = '0px', cycle
 
 /** restart every fragment in el (or el itself): a loop starts its cycle again from the top, a held one
     plays it once. For a tab or a panel the page shows again */
-export function restart(el = document) {
-  const roots = el.matches && el.matches('[data-ui]') ? [el] : [...el.querySelectorAll('[data-ui]')];
+export function restart(el: Document | Element = document) {
+  const roots = el instanceof HTMLElement && el.matches('[data-ui]') ? [el] : [...el.querySelectorAll<HTMLElement>('[data-ui]')];
   for (const r of roots) { try { r.__ui?.restart?.(); } catch (e) { console.warn(e); } }
 }
 
@@ -545,17 +596,21 @@ export function restart(el = document) {
   after a theme change: every ground is drawn again in the new colours. Resolves when the grounds near
   the screen are drawn.
 */
-const grounded = new WeakMap();
-const bakeQueue = [];
-let bakeBusy = null;
-const nextFrame = () => new Promise(r => requestAnimationFrame(() => r()));
-const parseJSON = s => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
+interface GroundState {
+  fx: Fx; live: boolean; near: boolean; dirty: boolean; queued: boolean; gen: number;
+  size: [number, number] | null; extra: Record<string, unknown> | null; tries: number; rt?: number;
+}
+const grounded = new WeakMap<Element, GroundState>();
+const bakeQueue: [HTMLElement, Fx, GroundState][] = [];
+let bakeBusy: Promise<void> | null = null;
+const nextFrame = () => new Promise<void>(r => requestAnimationFrame(() => r()));
+const parseJSON = (s: string | undefined) => { try { return s ? JSON.parse(s) as Record<string, unknown> : null; } catch { return null; } };
 // live: marked so, or holding a fragment that drives it and is not held still (a still slider never
 // moves); never under reduced motion, where no fragment moves
-const isLive = el => !reduced() && (el.hasAttribute('data-fx-live') ||
-  [...el.querySelectorAll('[data-ui-opts]')].some(f => /"drive"/.test(f.dataset.uiOpts || '') && !f.closest('[data-ui-still]')));
+const isLive = (el: HTMLElement) => !reduced() && (el.hasAttribute('data-fx-live') ||
+  [...el.querySelectorAll<HTMLElement>('[data-ui-opts]')].some(f => /"drive"/.test(f.dataset.uiOpts || '') && !f.closest('[data-ui-still]')));
 // mount with a device-pixel cap of its own: fx.shader reads fx.config.maxDpr once, when it is made
-async function mountAt(fx, el, spec, dpr) {
+async function mountAt(fx: Fx, el: HTMLElement, spec: GroundSpec, dpr: number) {
   await fx.load(el.dataset.fx);
   const cfg = fx.config, keep = cfg ? cfg.maxDpr : null;
   if (cfg) cfg.maxDpr = dpr;
@@ -563,7 +618,7 @@ async function mountAt(fx, el, spec, dpr) {
 }
 const bakeDpr = () => Math.min(2, Math.max(1, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1));
 
-function groundSpec(el, fx, extra) {
+function groundSpec(el: HTMLElement, fx: Fx, extra?: Record<string, unknown> | null): GroundSpec {
   let palette = fx.readPalette(el);
   const over = parseJSON(el.dataset.fxPalette);
   if (over) palette = fx.normalizePalette({ ...palette, ...over });
@@ -571,9 +626,9 @@ function groundSpec(el, fx, extra) {
   if (!el.dataset.fxSeed) el.dataset.fxSeed = String(Math.floor(Math.random() * 10000));
   return { palette, params: { ...(parseJSON(el.dataset.fxParams) || {}), ...(extra || {}) }, seed: el.dataset.fxSeed };
 }
-function unground(el) { if (el.__fx) { try { el.__fx.destroy(); } catch { /* gone */ } } }
+function unground(el: HTMLElement) { if (el.__fx) { try { el.__fx.destroy(); } catch { /* gone */ } } }
 
-async function bakeOne(el, fx, st) {
+async function bakeOne(el: HTMLElement, fx: Fx, st: GroundState) {
   st.queued = false;
   if (!el.isConnected || !st.near || !st.dirty) return;
   const gen = ++st.gen;
@@ -586,21 +641,21 @@ async function bakeOne(el, fx, st) {
 }
 // a ground that could not be drawn (no WebGL, a shader error, too slow) still shows a picture: a still
 // field in its own colours (fx.fallbackCSS), never an empty panel; it is tried again when it comes back
-function stand(el, fx) {
+function stand(el: HTMLElement, fx: Fx) {
   if (el.style.background || !fx.fallbackCSS) return;
   try { el.style.background = fx.fallbackCSS(groundSpec(el, fx).palette); el.dataset.uiStandIn = ''; } catch { /* the panel's own fill stays */ }
 }
-async function bakeDraw(el, fx, st, gen) {
-  let api;
+async function bakeDraw(el: HTMLElement, fx: Fx, st: GroundState, gen: number) {
+  let api: FxGround;
   // a second try (after a frame that never came) draws at 1 device pixel: a slower machine still gets a picture
   try { api = await mountAt(fx, el, groundSpec(el, fx), st.tries ? 1 : bakeDpr()); } catch (e) { console.warn('ui: ground', e); stand(el, fx); st.dirty = false; return; }
   // fx makes the context once it sees the element; wait for its first drawn frame (slow on a CPU renderer)
-  let src = null;
+  let src: HTMLCanvasElement | null = null;
   for (const t0 = performance.now(); performance.now() - t0 < 10000;) {
     if (el.__fx !== api) return;                                    // replaced meanwhile
     if (gen !== st.gen || !st.near) { api.destroy(); if (st.near) queueBake(el, fx, st); return; }
     if (el.dataset.fxFallback) { st.dirty = false; return; }      // no WebGL: the CSS fallback stays
-    const c = el.querySelector(':scope > canvas.fx-canvas:not(.is-baked)');
+    const c = el.querySelector<HTMLCanvasElement>(':scope > canvas.fx-canvas:not(.is-baked)');
     if (c && c.style.opacity === '1') { src = c; break; }
     await nextFrame();
   }
@@ -613,15 +668,15 @@ async function bakeDraw(el, fx, st, gen) {
   api.set({});                    // one more frame now, so the drawing buffer is whole when it is copied
   const out = document.createElement('canvas');
   out.width = src.width; out.height = src.height;
-  out.getContext('2d').drawImage(src, 0, 0);
+  out.getContext('2d')!.drawImage(src, 0, 0);
   out.className = 'fx-canvas is-baked';
   out.setAttribute('aria-hidden', 'true');
   Object.assign(out.style, { position: 'absolute', inset: '0', width: '100%', height: '100%', display: 'block', zIndex: '-1', pointerEvents: 'none', borderRadius: 'inherit' });
   api.destroy();                                                     // frees the WebGL context
   el.insertBefore(out, el.firstChild);
   if (el.dataset.uiStandIn != null) { el.style.background = ''; delete el.dataset.uiStandIn; }   // the real picture replaces the stand-in
-  const id = el.dataset.fx;
-  const stub = {
+  const id = el.dataset.fx!;
+  const stub: FxGround = {
     id, el, baked: true, params: api.params, palette: api.palette, seed: api.seed,
     pause() {}, resume() {}, set() { return stub; }, setPalette() { return stub; },
     destroy() { out.remove(); if (el.__fx === stub) delete el.__fx; el.removeAttribute('data-fx-mounted'); },
@@ -648,7 +703,7 @@ function pump() {
   if (!bakeBusy) bakeBusy = (async () => {
     await null;                   // every ground the same scroll brought near is queued before one is picked
     while (bakeQueue.length) {
-      const [el, fx, st] = nextBake();
+      const [el, fx, st] = nextBake()!;
       try { await bakeOne(el, fx, st); } catch (e) { console.warn('ui: ground', e); }
       await nextFrame();
     }
@@ -656,13 +711,13 @@ function pump() {
   })();
   return bakeBusy;
 }
-function queueBake(el, fx, st) {
+function queueBake(el: HTMLElement, fx: Fx, st: GroundState) {
   if (st.queued || !st.dirty) return;
   st.queued = true;
   bakeQueue.push([el, fx, st]);
   pump();
 }
-async function liveOn(el, fx, st) {
+async function liveOn(el: HTMLElement, fx: Fx, st: GroundState) {
   if (el.__fx && !el.__fx.baked) return;
   const gen = ++st.gen;
   unground(el);
@@ -674,16 +729,17 @@ async function liveOn(el, fx, st) {
   api.set = next => { st.extra = { ...st.extra, ...next }; return set(next); };
 }
 
-const groundWaiters = [];
+const groundWaiters: (() => void)[] = [];
 const groundIO = typeof IntersectionObserver === 'function' ? new IntersectionObserver(es => {
   for (const e of es) {
-    const st = grounded.get(e.target);
+    const el = e.target as HTMLElement;
+    const st = grounded.get(el);
     if (!st) continue;
     st.near = e.isIntersecting;
     if (st.live) {
-      if (st.near) liveOn(e.target, st.fx, st);
-      else { st.gen++; unground(e.target); }                      // its context is freed off screen
-    } else if (st.near) queueBake(e.target, st.fx, st);
+      if (st.near) liveOn(el, st.fx, st);
+      else { st.gen++; unground(el); }                      // its context is freed off screen
+    } else if (st.near) queueBake(el, st.fx, st);
   }
   for (const r of groundWaiters.splice(0)) r();
 }, { rootMargin: '12% 0px' }) : null;   // the same margin fx.js makes its contexts at
@@ -694,17 +750,17 @@ const groundRO = typeof ResizeObserver === 'function' ? new ResizeObserver(es =>
     const w = e.target.clientWidth, h = e.target.clientHeight;
     if (Math.abs(w - st.size[0]) < 2 && Math.abs(h - st.size[1]) < 2) continue;
     clearTimeout(st.rt);
-    st.rt = setTimeout(() => { st.dirty = true; if (st.near) queueBake(e.target, st.fx, st); }, 250);
+    st.rt = setTimeout(() => { st.dirty = true; if (st.near) queueBake(e.target as HTMLElement, st.fx, st); }, 250);
   }
 }) : null;
 
-export async function grounds(root, fx, { skip } = {}) {
+export async function grounds(root: Document | HTMLElement, fx: Fx, { skip }: { skip?: (el: HTMLElement) => boolean } = {}): Promise<unknown> {
   root = root || document;
   if (fx.config) fx.config.maxLive = Math.min(fx.config.maxLive || 3, 3);
-  const els = [...root.querySelectorAll('[data-fx]')].filter(el => !(skip && skip(el)));
-  if (root.matches && root.matches('[data-fx]') && !(skip && skip(root))) els.unshift(root);
+  const els = [...root.querySelectorAll<HTMLElement>('[data-fx]')].filter(el => !(skip && skip(el)));
+  if (root instanceof HTMLElement && root.matches('[data-fx]') && !(skip && skip(root))) els.unshift(root);
   if (!groundIO) return fx.mountAll(root);
-  const seen = new Promise(r => groundWaiters.push(r));
+  const seen = new Promise<void>(r => groundWaiters.push(r));
   for (const el of els) {
     let st = grounded.get(el);
     if (st) {
@@ -727,7 +783,7 @@ export async function grounds(root, fx, { skip } = {}) {
 export const POINTER_SVG = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 2.8v13.4c0 .5.6.7.9.4l3.2-3.1 2.2 4.9c.1.3.5.4.8.3l1.6-.7c.3-.1.4-.5.3-.8l-2.2-4.8 4.4-.3c.5 0 .7-.6.3-.9L5.4 2.4c-.4-.3-.9 0-.9.4Z" fill="#111" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/></svg>';
 
 /** a controller that also restarts, pauses and holds: for a fragment that returns its own destroy() */
-export const withLoop = (ctl, destroy) => ({ pause: ctl.pause, resume: ctl.resume, restart: ctl.restart, hold: ctl.hold, destroy });
+export const withLoop = (ctl: LoopControl, destroy: () => void) => ({ pause: ctl.pause, resume: ctl.resume, restart: ctl.restart, hold: ctl.hold, destroy });
 
 const ui = { load, loadAll, start, startAll, plan, loop, restart, hold, pausable, grounds, isStill, reduced, POINTER_SVG };
 export default ui;

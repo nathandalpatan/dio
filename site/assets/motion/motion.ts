@@ -21,17 +21,22 @@
     preventDefault().
   Under prefers-reduced-motion: no indicator travel, no tick, no loops, no restart.
 */
+interface CountControl { arm(): boolean; show(): void; hit(): void; }
+declare global {
+  interface HTMLElement { __mCount?: CountControl; __mLoop?: boolean; __show?: (paused: boolean) => void; }
+}
+
 const html = document.documentElement;
 const reducedQ = matchMedia('(prefers-reduced-motion: reduce)');
 const reduced = () => reducedQ.matches;
 const shot = () => /HeadlessChrome/.test(navigator.userAgent) && html.dataset.motion !== 'live';
-const jump = (el, on) => { el.classList.toggle('is-jump', on); };
+const jump = (el: Element, on: boolean) => { el.classList.toggle('is-jump', on); };
 
 /* ---------------------------------------------------------------- nav */
 function nav() {
-  const bar = document.querySelector('.nav');
+  const bar = document.querySelector<HTMLElement>('.nav');
   const links = bar?.querySelector('.nav__links');
-  if (!links || bar.dataset.mNav) return;
+  if (!bar || !links || bar.dataset.mNav) return;
   bar.dataset.mNav = '1';   // no pill under the words (ST-08, ST-11): system.css draws their underline
 
   // one menu open: the next word swaps the panel at once (figma.com); leaving the bar closes softly
@@ -59,7 +64,7 @@ function tabs() {
     list.classList.add('m-has-ind');
     let instant = true;
     const place = () => {
-      const sel = list.querySelector('[role="tab"][aria-selected="true"]');
+      const sel = list.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
       if (!sel) { ind.style.opacity = '0'; return; }
       ind.style.opacity = '';
       const now = instant || reduced();
@@ -82,11 +87,11 @@ function tabs() {
 // the first number in the element's text: "8,402", "4.2", "64%", "EUR 1.200", "12k"
 // separators: . , and the no-break spaces (U+00A0, U+202F); a plain space ends the number ("12 4 h" is 12)
 const NUM = /\d+(?:[.,\u00A0\u202F]\d+)*/;
-function parse(text) {
+function parse(text: string) {
   const m = text.match(NUM);
   if (!m) return null;
   const raw = m[0];
-  const seps = raw.match(/[^\d]/g) || [];
+  const seps: string[] = raw.match(/[^\d]/g) || [];
   let dec = '', group = '', decimals = 0;
   const lastSep = raw.search(/[^\d](?=\d+$)/);
   if (lastSep >= 0) {
@@ -97,9 +102,10 @@ function parse(text) {
   }
   const intPart = dec ? raw.slice(0, lastSep) : raw;
   const value = parseFloat(intPart.replace(/[^\d]/g, '') + (dec ? '.' + raw.slice(lastSep + 1) : ''));
-  return { index: m.index, raw, value, dec, group, decimals };
+  return { index: m.index!, raw, value, dec, group, decimals };
 }
-function format(v, p) {
+type NumParts = NonNullable<ReturnType<typeof parse>>;
+function format(v: number, p: NumParts) {
   let [i, d] = v.toFixed(p.decimals).split('.');
   if (p.group) i = i.replace(/\B(?=(\d{3})+(?!\d))/g, p.group);
   return d ? i + p.dec + d : i;
@@ -107,16 +113,17 @@ function format(v, p) {
 // the web fonts, or 3 s at most: a number measured in the fallback font comes out narrower
 const fontsIn = () => Promise.race([document.fonts?.ready ?? Promise.resolve(), new Promise(r => setTimeout(r, 3000))]);
 function counts() {
-  const els = [...document.querySelectorAll('[data-m-count]')].filter(el => !el.__mCount);
+  const els = [...document.querySelectorAll<HTMLElement>('[data-m-count]')].filter(el => !el.__mCount);
   if (!els.length || reduced() || shot()) return;
-  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) e.target.__mCount?.hit(); }), { threshold: 0.6 });
-  const ro = new ResizeObserver(es => es.forEach(e => e.target.__mCount?.arm()));
-  const items = [];
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) (e.target as HTMLElement).__mCount?.hit(); }), { threshold: 0.6 });
+  const ro = new ResizeObserver(es => es.forEach(e => (e.target as HTMLElement).__mCount?.arm()));
+  const items: HTMLElement[] = [];
   els.forEach(el => {
     const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    let node, p;
-    while ((node = walk.nextNode()) && !(p = parse(node.data))) { /* next */ }
-    if (!node || !p) return;
+    let node: Text | null, found: NumParts | null = null;
+    while ((node = walk.nextNode() as Text | null) && !(found = parse(node.data))) { /* next */ }
+    if (!node || !found) return;
+    const p = found;
     // the number gets its own span, as wide as the final number and right-aligned, so nothing beside it
     // moves. Until it is measured it shows its own text, never a 0
     const after = node.splitText(p.index);
@@ -127,8 +134,8 @@ function counts() {
     span.style.textAlign = 'right';
     span.textContent = p.raw;
     after.replaceWith(span);
-    const ms = +el.dataset.mCount || 1200;
-    let state = 'wait', timer = 0;          // wait (own text) -> armed (0, width held) -> run -> done
+    const ms = Number(el.dataset.mCount) || 1200;
+    let state: 'wait' | 'armed' | 'run' | 'done' = 'wait', timer = 0;          // wait (own text) -> armed (0, width held) -> run -> done
     const stop = () => { clearTimeout(timer); io.unobserve(el); ro.unobserve(el); };
     const onScreen = () => {
       const r = span.getBoundingClientRect();
@@ -142,7 +149,7 @@ function counts() {
         if (onScreen()) { state = 'done'; stop(); span.textContent = p.raw; } else watch();
       }, 6000);
     };
-    const ctl = {
+    const ctl: CountControl = {
       /** measure the final number in the page's font and hold its width; false while it has none (hidden) */
       arm() {
         if (state === 'run' || state === 'done') return false;
@@ -163,7 +170,7 @@ function counts() {
         state = 'run';
         stop();
         const t0 = performance.now();
-        const step = now => {
+        const step = (now: number) => {
           const k = Math.min(1, (now - t0) / ms);
           span.textContent = k < 1 ? format(p.value * (1 - Math.pow(1 - k, 4)), p) : p.raw;
           if (k < 1) requestAnimationFrame(step); else state = 'done';
@@ -175,43 +182,43 @@ function counts() {
     items.push(el);
   });
   // measured only once the fonts are in; the resize observer measures again when a hidden stat shows
-  fontsIn().then(() => items.forEach(el => { el.__mCount.arm(); ro.observe(el); io.observe(el); }));
+  fontsIn().then(() => items.forEach(el => { el.__mCount!.arm(); ro.observe(el); io.observe(el); }));
   // a printed page never scrolls the stats into view: each prints its own number
-  addEventListener('beforeprint', () => items.forEach(el => el.__mCount.show()));
+  addEventListener('beforeprint', () => items.forEach(el => el.__mCount!.show()));
 }
 
 /* ---------------------------------------------------------------- loops inside cards */
 const ICON_PAUSE = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4.25" y="3.25" width="2.75" height="9.5" rx="0.9"/><rect x="9" y="3.25" width="2.75" height="9.5" rx="0.9"/></svg>';
 const ICON_PLAY = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.25 3.7v8.6c0 .62.68 1 1.2.66l6.5-4.3c.47-.31.47-1 0-1.32l-6.5-4.3c-.52-.34-1.2.04-1.2.66Z"/></svg>';
-const boxOf = el => el.closest('[data-ui-pause-host], .panel__screen, .panel, .frame') || el;
-const hostOf = el => el.closest('.card, .tile, .menu-card, a') || boxOf(el);
+const boxOf = (el: HTMLElement) => el.closest<HTMLElement>('[data-ui-pause-host], .panel__screen, .panel, .frame') || el;
+const hostOf = (el: HTMLElement) => el.closest<HTMLElement>('.card, .tile, .menu-card, a') || boxOf(el);
 
-function restart(loop) {
+function restart(loop: HTMLElement) {
   if (reduced() || loop.classList.contains('is-m-paused')) return;
   // the page's keyframe loops only: a hover transition in the panel (the pause button's) is no cycle.
   // ui.js fragments in the card restart by themselves
   const anims = loop.getAnimations({ subtree: true }).filter(a => typeof CSSAnimation === 'function' && a instanceof CSSAnimation);
   if (!anims.length) return;
-  const dur = a => Number(a.effect?.getComputedTiming().duration) || 0;
+  const dur = (a: Animation) => Number(a.effect?.getComputedTiming().duration) || 0;
   const main = anims.reduce((m, a) => (dur(a) > dur(m) ? a : m));
   const d = dur(main), t = Number(main.currentTime) || 0;
   // restart only when the cycle is past its first quarter, so a quick in-and-out never stutters
   if (!d || (t % d) / d > 0.25) anims.forEach(a => { a.currentTime = 0; });
 }
-function setPaused(box, paused) {
+function setPaused(box: HTMLElement, paused: boolean) {
   box.querySelectorAll('[data-m-loop]').forEach(l => l.classList.toggle('is-m-paused', paused));
   if (box.matches('[data-m-loop]')) box.classList.toggle('is-m-paused', paused);
 }
-function pauseButton(loop) {
+function pauseButton(loop: HTMLElement) {
   const box = boxOf(loop);
   if (box.querySelector(':scope > .loop-pause')) return;   // ui.js or the page put one there: it is shared
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'loop-pause m-own';
-  const show = paused => {
+  const show = (paused: boolean) => {
     btn.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
     btn.setAttribute('aria-label', `${paused ? 'Play' : 'Pause'} animation`);
-    btn.title = btn.getAttribute('aria-label');
+    btn.title = btn.getAttribute('aria-label')!;
     btn.classList.toggle('is-paused', paused);
   };
   show(false);
@@ -220,7 +227,7 @@ function pauseButton(loop) {
   btn.__show = show;
 }
 function loops() {
-  const els = [...document.querySelectorAll('[data-m-loop]')].filter(el => !el.__mLoop);
+  const els = [...document.querySelectorAll<HTMLElement>('[data-m-loop]')].filter(el => !el.__mLoop);
   if (!els.length) return;
   if (reduced() || matchMedia('(max-width: 639px)').matches) return;   // motion.css holds them on their finished picture
   const io = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle('is-m-off', !e.isIntersecting)), { rootMargin: '48px' });
@@ -229,25 +236,25 @@ function loops() {
     io.observe(el);
     pauseButton(el);
     hostOf(el).addEventListener('pointerenter', e => { if (e.pointerType !== 'touch') restart(el); });   // a mouse or pen, never a tap
-    hostOf(el).addEventListener('focusin', e => { if (!e.target.closest('.loop-pause')) restart(el); });
+    hostOf(el).addEventListener('focusin', e => { if (!(e.target as Element).closest('.loop-pause')) restart(el); });
   });
 }
 // one listener for every pause button: its own (m-own) toggles; a ui.js one is mirrored after ui.js ran
 document.addEventListener('click', e => {
-  const btn = e.target.closest('.loop-pause');
+  const btn = (e.target as Element).closest<HTMLElement>('.loop-pause');
   if (!btn) return;
-  const box = btn.parentElement;
+  const box = btn.parentElement!;
   if (btn.classList.contains('m-own')) {
     const paused = !btn.classList.contains('is-paused');
-    btn.__show(paused);
+    btn.__show!(paused);
     setPaused(box, paused);
-    box.querySelectorAll('[data-ui]').forEach(r => { try { paused ? r.__ui?.pause() : r.__ui?.resume(); } catch { /* none */ } });
+    box.querySelectorAll<HTMLElement>('[data-ui]').forEach(r => { try { paused ? r.__ui?.pause!() : r.__ui?.resume!(); } catch { /* none */ } });
   } else setPaused(box, btn.classList.contains('is-paused'));
 });
 
 /* ---------------------------------------------------------------- switches */
 document.addEventListener('click', e => {
-  const sw = e.target.closest('.m-switch');
+  const sw = (e.target as Element).closest('.m-switch');
   if (!sw || e.defaultPrevented) return;
   sw.setAttribute('aria-checked', String(sw.getAttribute('aria-checked') !== 'true'));
 });

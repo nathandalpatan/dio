@@ -32,12 +32,12 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const phone = () => innerWidth < 640;
 // kind other (a cafe, a shop, a studio) and a place: nothing moves by itself (MO-07); the first word,
 // the first set and the finished steps show, still
-const other = () => { const m = document.querySelector('meta[name="site-kind"]'); return document.documentElement.dataset.type === 'place' || (!!m && m.content.trim().toLowerCase() === 'other'); };
+const other = () => { const m = document.querySelector<HTMLMetaElement>('meta[name="site-kind"]'); return document.documentElement.dataset.type === 'place' || (!!m && m.content.trim().toLowerCase() === 'other'); };
 
 /* ---------------------------------------------------------------- the live word */
-function liveWord(slot) {
-  let words;
-  try { words = JSON.parse(slot.dataset.lyWord); } catch { return; }
+function liveWord(slot: HTMLElement) {
+  let words: string[];
+  try { words = JSON.parse(slot.dataset.lyWord!); } catch { return; }
   const first = slot.textContent.trim();
   words = [first, ...words.filter(w => w !== first)];
   if (words.length < 2) return;
@@ -53,7 +53,7 @@ function liveWord(slot) {
     return s;
   });
   let at = 0;
-  const show = i => {
+  const show = (i: number) => {
     spans.forEach((s, k) => { s.style.transition = 'none'; s.className = k === i ? '' : 'is-next'; void s.offsetWidth; s.style.transition = ''; });
     at = i;
   };
@@ -73,7 +73,7 @@ function liveWord(slot) {
 }
 
 /* ---------------------------------------------------------------- letters that answer the pointer */
-function letters(h1) {
+function letters(h1: HTMLElement) {
   if (reduced() || !matchMedia('(pointer: fine)').matches) return;
   const axis = h1.dataset.lyLetters === 'wdth';
   const cs = getComputedStyle(h1);
@@ -81,11 +81,11 @@ function letters(h1) {
   const heavy = Math.min(900, base + 200);
   const baseW = parseFloat(cs.fontStretch) || 100;
   const label = h1.getAttribute('aria-label') || h1.textContent.replace(/\s+/g, ' ').trim();
-  const walk = node => {
+  const walk = (node: Node) => {
     for (const n of [...node.childNodes]) {
       if (n.nodeType === 3) {
         const frag = document.createDocumentFragment();
-        for (const part of n.textContent.split(/(\s+)/)) {
+        for (const part of n.textContent!.split(/(\s+)/)) {
           if (!part) continue;
           if (/^\s+$/.test(part)) { frag.append(document.createTextNode(' ')); continue; }
           const wd = document.createElement('span');
@@ -94,30 +94,30 @@ function letters(h1) {
           frag.append(wd);
         }
         n.replaceWith(frag);
-      } else if (n.nodeType === 1 && !n.matches('.ly-word, .ly-mark, .ly-pic')) walk(n);
+      } else if (n.nodeType === 1 && !(n as Element).matches('.ly-word, .ly-mark, .ly-pic')) walk(n);
     }
   };
   walk(h1);
   h1.classList.add('ly-letters');
   h1.setAttribute('aria-label', label);
-  [...h1.childNodes].forEach(c => { if (c.nodeType === 1) c.setAttribute('aria-hidden', 'true'); });
-  const ls = [...h1.querySelectorAll('.ly-l')];
-  let px = 0, py = 0, raf = 0, on = false, boxes = null;
-  const measure = () => { boxes = ls.map(l => { const r = l.getBoundingClientRect(); return [r.left + r.width / 2 + scrollX, r.top + r.height / 2 + scrollY]; }); };
+  [...h1.childNodes].forEach(c => { if (c.nodeType === 1) (c as Element).setAttribute('aria-hidden', 'true'); });
+  const ls = [...h1.querySelectorAll<HTMLElement>('.ly-l')];
+  let px = 0, py = 0, raf = 0, on = false, boxes: number[][] | null = null;
+  const measure = () => (boxes = ls.map(l => { const r = l.getBoundingClientRect(); return [r.left + r.width / 2 + scrollX, r.top + r.height / 2 + scrollY]; }));
   const draw = () => {
     raf = 0;
-    if (!boxes) measure();
+    const at = boxes || measure();
     const reach = parseFloat(getComputedStyle(h1).fontSize) * 2.4;
     ls.forEach((l, i) => {
-      const d = on ? Math.hypot(px + scrollX - boxes[i][0], py + scrollY - boxes[i][1]) : Infinity;
+      const d = on ? Math.hypot(px + scrollX - at[i][0], py + scrollY - at[i][1]) : Infinity;
       const k = Math.max(0, 1 - d / reach), e = k * k * (3 - 2 * k);
-      l.style.setProperty('--w', Math.round(base + (heavy - base) * e));
+      l.style.setProperty('--w', String(Math.round(base + (heavy - base) * e)));
       if (axis) l.style.setProperty('--wd', (baseW + 10 * e).toFixed(1) + '%');
     });
   };
   addEventListener('resize', () => { boxes = null; });
   document.fonts?.ready.then(() => { boxes = null; });
-  const host = h1.closest('.hero') || h1;
+  const host = h1.closest<HTMLElement>('.hero') || h1;
   host.addEventListener('pointermove', e => { if (e.pointerType === 'touch') return; on = true; px = e.clientX; py = e.clientY; if (!raf) raf = requestAnimationFrame(draw); });
   host.addEventListener('pointerleave', () => { on = false; boxes = null; if (!raf) raf = requestAnimationFrame(draw); });
 }
@@ -127,23 +127,23 @@ function letters(h1) {
 // word, the mark and a pill are units of their own. At rest it reads where each line starts, puts a
 // <br class="ly-br"> there and stops wrapping (h1.ly-locked); on resize it unlocks, waits a frame and
 // reads again. Nothing moves when it locks: the breaks are where the browser had them.
-function lockLines(h1) {
+function lockLines(h1: HTMLElement) {
   const units = () => {
-    const out = [];
-    const walk = node => {
+    const out: Element[] = [];
+    const walk = (node: Node) => {
       for (const n of [...node.childNodes]) {
         if (n.nodeType === 3) {
-          if (!n.textContent.trim()) continue;
+          if (!n.textContent!.trim()) continue;
           const frag = document.createDocumentFragment();
-          for (const part of n.textContent.split(/(\s+)/)) {
+          for (const part of n.textContent!.split(/(\s+)/)) {
             if (!part) continue;
             if (/^\s+$/.test(part)) { frag.append(document.createTextNode(' ')); continue; }
             const w = document.createElement('span'); w.className = 'ly-u'; w.style.whiteSpace = 'nowrap'; w.textContent = part; frag.append(w);
           }
           n.replaceWith(frag);
-        } else if (n.nodeType === 1) {
+        } else if (n instanceof Element) {
           if (n.matches('.ly-word, .ly-mark, .ly-pic, .ly-u, br')) { if (!n.matches('br')) out.push(n); continue; }
-          if (n.style.whiteSpace === 'nowrap' && n.querySelector('.ly-l')) { out.push(n); continue; }   // a word of letters()
+          if ((n as HTMLElement).style.whiteSpace === 'nowrap' && n.querySelector('.ly-l')) { out.push(n); continue; }   // a word of letters()
           walk(n);
         }
       }
@@ -156,7 +156,7 @@ function lockLines(h1) {
   const lock = () => {
     unlock();
     list = list.filter(u => u.isConnected);
-    let top = null;
+    let top: number | null = null;
     const fs = parseFloat(getComputedStyle(h1).fontSize) || 16;
     for (const u of list) {
       const t = u.getBoundingClientRect().top;
@@ -168,7 +168,7 @@ function lockLines(h1) {
     if (h1.scrollWidth > h1.clientWidth + 1) unlock();
   };
   // read the lines at rest: after the fonts, and after the pills in the line have opened to their width
-  const opened = () => Promise.all([...h1.querySelectorAll('.ly-pic, .ly-pic > img')].flatMap(p => (p.getAnimations ? p.getAnimations() : []).map(a => a.finished.catch(() => {}))));
+  const opened = () => Promise.all([...h1.querySelectorAll('.ly-pic, .ly-pic > img')].flatMap(p => (p.getAnimations ? p.getAnimations() : []).map((a: Animation) => a.finished.catch(() => {}))));
   const ready = document.fonts ? document.fonts.ready : Promise.resolve();
   ready.then(opened).then(() => requestAnimationFrame(lock));
   // the h1 changing width (a resize, the phone width arriving after the first paint) reads the lines again,
@@ -184,10 +184,10 @@ function lockLines(h1) {
 }
 
 /* ---------------------------------------------------------------- the collage */
-function collage(box) {
+function collage(box: HTMLElement) {
   const sets = [...box.querySelectorAll(':scope > .ly-collage__set')];
   if (!sets.length) return;
-  const show = i => sets.forEach((s, k) => { s.classList.toggle('is-on', k === i); s.toggleAttribute('inert', k !== i); s.setAttribute('aria-hidden', String(k !== i)); });
+  const show = (i: number) => sets.forEach((s, k) => { s.classList.toggle('is-on', k === i); s.toggleAttribute('inert', k !== i); s.setAttribute('aria-hidden', String(k !== i)); });
   show(0);
   if (sets.length < 2 || phone() || other()) return;
   box.setAttribute('data-ui-pause-host', '');
@@ -197,17 +197,17 @@ function collage(box) {
 }
 
 /* ---------------------------------------------------------------- steps inside a piece of UI */
-function steps(box) {
+function steps(box: HTMLElement) {
   // data-step-at="n" puts a step at that place in the order (0 is first); the rest keep document order
-  const items = [...box.querySelectorAll('[data-step]')]
+  const items = [...box.querySelectorAll<HTMLElement>('[data-step]')]
     .map((el, i) => ({ el, at: el.dataset.stepAt != null ? parseFloat(el.dataset.stepAt) : i }))
     .sort((a, b) => a.at - b.at).map(o => o.el);
   if (!items.length) return;
   // house rule: the loops inside cards a little faster, and repeating. The first picture is the
   // finished one (a shot or a first look never meets an empty card); then it plays and holds again.
-  const every = parseInt(box.dataset.lySteps, 10) || 700;
-  const hold = parseInt(box.dataset.lyHold, 10) || 1800;
-  const set = n => items.forEach((s, k) => s.classList.toggle('is-off', k >= n));
+  const every = parseInt(box.dataset.lySteps!, 10) || 700;
+  const hold = parseInt(box.dataset.lyHold!, 10) || 1800;
+  const set = (n: number) => items.forEach((s, k) => s.classList.toggle('is-off', k >= n));
   const done = () => set(items.length);
   done();
   if (reduced() || phone() || other()) return;
@@ -219,11 +219,11 @@ function steps(box) {
 }
 
 /* ---------------------------------------------------------------- hotspots */
-function spot(el) {
-  const btn = el.querySelector(':scope > button');
+function spot(el: HTMLElement) {
+  const btn = el.querySelector<HTMLButtonElement>(':scope > button');
   if (!btn) return;
-  const card = el.querySelector('.ly-spot__card');
-  const stage = el.closest('.hero__stage') || el.parentElement;
+  const card = el.querySelector<HTMLElement>('.ly-spot__card');
+  const stage = (el.closest('.hero__stage') || el.parentElement)!;
   // the card opens on the side with room: a disc right of the middle opens it to its left (desktop);
   // on a phone it opens under the disc, nudged (--dx) to stay 16px inside the stage
   const place = () => {
@@ -241,21 +241,21 @@ function spot(el) {
   if (el.classList.contains('ly-spot--left')) el.dataset.lySide = 'left';
   place();
   addEventListener('resize', place);
-  const set = on => { if (on) place(); el.classList.toggle('is-open', on); btn.setAttribute('aria-expanded', String(on)); };
+  const set = (on: boolean) => { if (on) place(); el.classList.toggle('is-open', on); btn.setAttribute('aria-expanded', String(on)); };
   set(false);
   el.addEventListener('pointerenter', place);
   el.addEventListener('focusin', place);
   btn.addEventListener('click', () => set(!el.classList.contains('is-open')));
-  document.addEventListener('pointerdown', e => { if (!el.contains(e.target)) set(false); });
+  document.addEventListener('pointerdown', e => { if (!el.contains(e.target as Node)) set(false); });
   el.addEventListener('keydown', e => { if (e.key === 'Escape') { set(false); btn.focus(); } });
 }
 
 /* ---------------------------------------------------------------- the film */
-function film(btn) {
+function film(btn: HTMLElement) {
   const src = btn.dataset.film;
   if (!src) { if (btn.tagName === 'BUTTON') btn.hidden = true; return; }
   btn.addEventListener('click', () => {
-    const media = btn.closest('.hero__media');
+    const media = btn.closest('.hero__media')!;
     const v = document.createElement('video');
     Object.assign(v, { src, controls: true, autoplay: true, playsInline: true });
     const poster = media.querySelector('img');
@@ -267,13 +267,13 @@ function film(btn) {
 }
 
 function init() {
-  document.querySelectorAll('[data-ly-word]').forEach(liveWord);
-  document.querySelectorAll('h1[data-ly-letters]').forEach(letters);
-  document.querySelectorAll('h1[data-ly-letters], h1:has(.ly-word)').forEach(lockLines);
-  document.querySelectorAll('.ly-collage').forEach(collage);
-  document.querySelectorAll('[data-ly-steps]').forEach(steps);
-  document.querySelectorAll('.ly-spot').forEach(spot);
-  document.querySelectorAll('.ly-play').forEach(film);
+  document.querySelectorAll<HTMLElement>('[data-ly-word]').forEach(liveWord);
+  document.querySelectorAll<HTMLElement>('h1[data-ly-letters]').forEach(letters);
+  document.querySelectorAll<HTMLElement>('h1[data-ly-letters], h1:has(.ly-word)').forEach(lockLines);
+  document.querySelectorAll<HTMLElement>('.ly-collage').forEach(collage);
+  document.querySelectorAll<HTMLElement>('[data-ly-steps]').forEach(steps);
+  document.querySelectorAll<HTMLElement>('.ly-spot').forEach(spot);
+  document.querySelectorAll<HTMLElement>('.ly-play').forEach(film);
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
 else init();

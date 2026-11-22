@@ -53,21 +53,24 @@
     and figures on this page are examples") or a printed .example address gets a red dashed outline
     and <html data-placeholders="n">; an effect id in more than two sections sets <html data-fx-repeat>.
 */
+import type { Fx } from './ui/ui.js';
+import type uiKit from './ui/ui.js';
+
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const HERE = new URL('./', import.meta.url);
 /* kind other (a cafe, a shop, a studio, a service firm) and a place: nothing moves by itself (MO-07) */
 const kindOther = () => {
-  const m = document.querySelector('meta[name="site-kind"]');
+  const m = document.querySelector<HTMLMetaElement>('meta[name="site-kind"]');
   return document.documentElement.dataset.type === 'place' || (!!m && m.content.trim().toLowerCase() === 'other');
 };
 
 function nav() {
-  const nav = document.querySelector('.nav');
+  const nav = document.querySelector<HTMLElement>('.nav');
   if (!nav) return;
-  const toggle = nav.querySelector('.nav__toggle');
+  const toggle = nav.querySelector<HTMLElement>('.nav__toggle');
   const bars = '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   const cross = '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
-  const setOpen = open => {
+  const setOpen = (open: boolean) => {
     nav.classList.toggle('is-open', open);
     document.body.classList.toggle('nav-locked', open);
     if (toggle) { toggle.setAttribute('aria-expanded', String(open)); toggle.innerHTML = open ? cross : bars; }
@@ -75,42 +78,43 @@ function nav() {
   toggle?.addEventListener('click', () => setOpen(!nav.classList.contains('is-open')));
   nav.querySelectorAll('.nav__item').forEach(item => {
     if (!item.querySelector('.nav__menu')) return;
-    let btn = item.querySelector('.nav__expand');
+    let btn = item.querySelector<HTMLButtonElement>('.nav__expand');
     if (!btn) {
       btn = document.createElement('button');
       btn.className = 'nav__expand';
       btn.type = 'button';
       btn.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      item.querySelector('.nav__link').after(btn);
+      item.querySelector('.nav__link')!.after(btn);
     }
     const label = item.querySelector('.nav__link')?.textContent.trim() || 'section';
     btn.setAttribute('aria-label', `Show ${label} links`);
     btn.setAttribute('aria-expanded', 'false');
-    btn.addEventListener('click', () => {
+    const expand = btn;
+    expand.addEventListener('click', () => {
       const open = !item.classList.contains('is-expanded');
       item.classList.toggle('is-expanded', open);
-      btn.setAttribute('aria-expanded', String(open));
+      expand.setAttribute('aria-expanded', String(open));
     });
   });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if (nav.classList.contains('is-open')) { setOpen(false); toggle?.focus(); return; }
-    if (nav.contains(document.activeElement)) document.activeElement.blur();
+    if (nav.contains(document.activeElement)) (document.activeElement as HTMLElement).blur();
   });
   // a tap on any link in the open sheet closes it (a top-level word, a menu link, an action, an
   // in-page #anchor alike), so the page it leads to is never left under the sheet
   nav.addEventListener('click', e => {
-    if (nav.classList.contains('is-open') && e.target.closest?.('a[href]')) setOpen(false);
+    if (nav.classList.contains('is-open') && (e.target as Element).closest?.('a[href]')) setOpen(false);
   });
   window.matchMedia('(min-width: 1024px)').addEventListener('change', e => { if (e.matches) setOpen(false); });
 }
 
 function tabs() {
-  const parts = t => (t.getAttribute('aria-controls') || '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)).filter(Boolean);
+  const parts = (t: Element) => (t.getAttribute('aria-controls') || '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)).filter((el): el is HTMLElement => !!el);
   document.querySelectorAll('[role="tablist"]').forEach(list => {
-    const tabs = [...list.querySelectorAll('[role="tab"]')];
+    const tabs = [...list.querySelectorAll<HTMLElement>('[role="tab"]')];
     let first = true;
-    const select = (tab, focus) => {
+    const select = (tab: HTMLElement, focus?: boolean) => {
       tabs.forEach(t => {
         const on = t === tab;
         t.setAttribute('aria-selected', String(on));
@@ -141,7 +145,7 @@ function tabs() {
 
 /* every FAQ answer open, for good: a <details> in .faq is opened and its summary no longer closes it */
 function faq() {
-  document.querySelectorAll('.faq details').forEach(d => {
+  document.querySelectorAll<HTMLDetailsElement>('.faq details').forEach(d => {
     d.open = true;
     d.addEventListener('toggle', () => { if (!d.open) d.open = true; });
     const s = d.querySelector(':scope > summary');
@@ -152,12 +156,12 @@ function faq() {
 /* ------------------------------------------------------------------ opening hours
    today's row in the venue's time zone, from data-tz on the dl; never the visitor's clock */
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-function daySet(text) {
+function daySet(text: string | null | undefined) {
   const t = String(text || '').toLowerCase().replace(/\bweekdays\b/g, 'mon to fri').replace(/\bweekends?\b/g, 'sat and sun');
   if (/\b(daily|every day|all week|mon(day)?\s*(?:-|–|to)\s*sun(day)?)\b/.test(t)) return new Set(DAYS);
   const hits = [...t.matchAll(/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\.?/g)];
   if (!hits.length) return null;
-  const set = new Set();
+  const set = new Set<string>();
   for (let i = 0; i < hits.length; i++) {
     const a = DAYS.indexOf(hits[i][1]);
     const next = hits[i + 1];
@@ -171,14 +175,14 @@ function daySet(text) {
   return set;
 }
 function hours() {
-  document.querySelectorAll('dl.hours').forEach(dl => {
+  document.querySelectorAll<HTMLElement>('dl.hours').forEach(dl => {
     dl.querySelectorAll('.is-today').forEach(el => el.classList.remove('is-today'));
     const tz = dl.dataset.tz;
     if (!tz) return;
     let today;
     try { today = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: tz }).format(new Date()).slice(0, 3).toLowerCase(); }
     catch { console.warn(`system.js: hours: unknown time zone ${tz}`); return; }
-    for (const dt of dl.querySelectorAll('dt')) {
+    for (const dt of dl.querySelectorAll<HTMLElement>('dt')) {
       const days = daySet(dt.dataset.days ? dt.dataset.days.replace(/,/g, ' and ') : dt.textContent);
       if (!days?.has(today)) continue;
       dt.classList.add('is-today');
@@ -191,10 +195,10 @@ function hours() {
 /* [data-open-now] (a line in the visit block or the hero's notice) reads "Open now, until 16:00" or
    "Closed, opens Tuesday at 7:30" from the first dl.hours with data-tz, in the venue's time zone; its
    own text stays when the hours cannot be read (no data-tz, a row without times) */
-const DAY_NAMES = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
+const DAY_NAMES: Record<string, string> = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
 function openNow() {
   const outs = document.querySelectorAll('[data-open-now]');
-  const dl = document.querySelector('dl.hours[data-tz]');
+  const dl = document.querySelector<HTMLElement>('dl.hours[data-tz]');
   if (!outs.length || !dl) return;
   let parts;
   try {
@@ -203,12 +207,13 @@ function openNow() {
   } catch { return; }
   const today = DAYS.indexOf(parts.weekday.slice(0, 3).toLowerCase());
   const nowMin = (+parts.hour % 24) * 60 + +parts.minute;
-  const span = day => {
-    for (const dt of dl.querySelectorAll('dt')) {
+  type Span = { closed: true } | { closed?: false; open: number; close: number; from: string; to: string };
+  const span = (day: number): Span | null => {
+    for (const dt of dl.querySelectorAll<HTMLElement>('dt')) {
       const days = daySet(dt.dataset.days ? dt.dataset.days.replace(/,/g, ' and ') : dt.textContent);
       if (!days?.has(DAYS[day])) continue;
       const dd = dt.nextElementSibling;
-      const m = dd && dd.tagName === 'DD' && dd.textContent.match(/(\d{1,2})(?:[:.](\d{2}))?\s*(?:to|-|–|until)\s*(\d{1,2})(?:[:.](\d{2}))?/);
+      const m = dd && dd.tagName === 'DD' && dd.textContent!.match(/(\d{1,2})(?:[:.](\d{2}))?\s*(?:to|-|–|until)\s*(\d{1,2})(?:[:.](\d{2}))?/);
       return m ? { open: +m[1] * 60 + (+m[2] || 0), close: +m[3] * 60 + (+m[4] || 0), from: m[1] + (m[2] ? ':' + m[2] : ''), to: m[3] + (m[4] ? ':' + m[4] : ':00') } : { closed: true };
     }
     return null;
@@ -230,12 +235,12 @@ function openNow() {
    a list beside one photograph that changes to the row under the pointer, the focus or a tap */
 function peek() {
   document.querySelectorAll('[data-peek]').forEach(root => {
-    const rows = [...root.querySelectorAll('[data-peek-to]')];
-    const pics = [...root.querySelectorAll('[data-peek-for]')];
+    const rows = [...root.querySelectorAll<HTMLElement>('[data-peek-to]')];
+    const pics = [...root.querySelectorAll<HTMLImageElement>('[data-peek-for]')];
     if (!rows.length || !pics.length) return;
-    let cur = null;
+    let cur: HTMLElement | null = null;
     // the swap is instant (MO-07): the row's photograph shows, the others hide, nothing fades
-    const show = row => {
+    const show = (row: HTMLElement) => {
       const pic = pics.find(p => p.dataset.peekFor === row.dataset.peekTo);
       if (!pic || row === cur) return;
       cur = row;
@@ -250,17 +255,17 @@ function peek() {
     rows.forEach(r => {
       r.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') show(r); });
       r.addEventListener('focusin', () => show(r));
-      r.addEventListener('click', e => { if (!e.target.closest('a, button, input, select, textarea')) show(r); });
+      r.addEventListener('click', e => { if (!(e.target as Element).closest('a, button, input, select, textarea')) show(r); });
     });
   });
 }
 
 /* ------------------------------------------------------------------ visuals */
-let probe;
-function rgb(value) {
+let probe: CanvasRenderingContext2D | null = null;
+function rgb(value: string) {
   value = (value || '').trim();
   if (!value) return null;
-  probe = probe || document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  probe = probe || document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
   probe.canvas.width = probe.canvas.height = 1;
   probe.clearRect(0, 0, 1, 1);
   probe.fillStyle = '#000';
@@ -269,7 +274,7 @@ function rgb(value) {
   const d = probe.getImageData(0, 0, 1, 1).data;
   return d[3] ? [d[0], d[1], d[2]] : null;
 }
-const hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+const hex = (c: number[]) => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
 
 // The page's lit ground (references/cards.md: sand, sky, sage or painting, <html data-ground>, picked at
 // random from the three on a tech page; a page of kind other has none, it is flat). Without data-ground the
@@ -278,7 +283,7 @@ const GROUNDS = ['sand', 'sky', 'sage'];
 function groundTokens() {
   const html = document.documentElement;
   if (!html.dataset.ground) {
-    const first = document.querySelector('.card [data-fx], .frame [data-fx], .frame[data-fx]');
+    const first = document.querySelector<HTMLElement>('.card [data-fx], .frame [data-fx], .frame[data-fx]');
     const root = getComputedStyle(html);
     const key = `${root.getPropertyValue('--p-bg')}${root.getPropertyValue('--p-accent')}`.replace(/\s/g, '');
     let h = 0;
@@ -286,7 +291,7 @@ function groundTokens() {
     html.dataset.ground = first?.dataset.fx === 'painterly-landscape' ? 'painting' : GROUNDS[h % GROUNDS.length];
   }
   const cs = getComputedStyle(html);
-  const t = k => cs.getPropertyValue(`--ground-${k}`).trim();
+  const t = (k: string) => cs.getPropertyValue(`--ground-${k}`).trim();
   return { bg: t('bg'), surface: t('surface'), ink: t('ink'), muted: t('muted'), accent: t('accent') };
 }
 // every ground that holds UI, and the closing band's, takes the lit ground on light and dark pages
@@ -294,7 +299,7 @@ function groundTokens() {
 // UI are never four near-black layers. data-fx-palette on the element wins; --hue changes its accent.
 function lightGrounds() {
   const g = groundTokens();
-  document.querySelectorAll('[data-fx]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('[data-fx]').forEach(el => {
     if (el.dataset.fxPalette) return;
     const band = el.matches('.frame--cta > .frame__fx');
     if (!band && !el.matches('.panel, .panel__screen, .frame')) return;
@@ -309,7 +314,7 @@ function lightGrounds() {
 // the featured plan's lit border (cards.css .plan.is-featured): it rests on a quiet accent hairline;
 // on hover or keyboard focus one light runs round its edge (edge-glow, mounted for that lap, then
 // faded and freed), so nothing moves on its own or because the page scrolled
-function glowOnHover(fx, els) {
+function glowOnHover(fx: Fx, els: HTMLElement[]) {
   for (const el of els) {
     let busy = false;
     const lap = async () => {
@@ -336,14 +341,14 @@ function glowOnHover(fx, els) {
 
 async function visuals() {
   // a lit border written as data-fx="edge-glow" is the hover light (data-glow), never a ground
-  document.querySelectorAll('[data-fx="edge-glow"]').forEach(el => {
+  document.querySelectorAll<HTMLElement>('[data-fx="edge-glow"]').forEach(el => {
     el.dataset.glow = 'edge-glow';
     if (el.dataset.fxParams && !el.dataset.glowParams) el.dataset.glowParams = el.dataset.fxParams;
     el.removeAttribute('data-fx');
   });
-  const grounds = [...document.querySelectorAll('[data-fx]')];
-  const glows = [...document.querySelectorAll('[data-glow]')];
-  const frags = [...document.querySelectorAll('[data-ui-load], [data-ui]')].filter(el => !el.parentElement?.closest('[data-ui-load]'));
+  const grounds = [...document.querySelectorAll<HTMLElement>('[data-fx]')];
+  const glows = [...document.querySelectorAll<HTMLElement>('[data-glow]')];
+  const frags = [...document.querySelectorAll<HTMLElement>('[data-ui-load], [data-ui]')].filter(el => !el.parentElement?.closest('[data-ui-load]'));
   if (!grounds.length && !frags.length && !glows.length) return;
   // only the hero's ground moves, and not when its frame holds an object (assets/objects: data-print),
   // which is then that visual's one motion and its pause button the only one in the corner. On a phone
@@ -351,19 +356,19 @@ async function visuals() {
   // rest and every fragment holds its finished picture (as most good sites cut motion there), so no
   // pause button covers the UI. A held fragment still plays while the pointer is on its card.
   const phone = window.matchMedia('(max-width: 639px)').matches || kindOther();
-  const box = el => el.closest('.frame, .panel__screen, .panel') || el;
+  const box = (el: HTMLElement) => el.closest('.frame, .panel__screen, .panel') || el;
   const moving = phone ? [] : grounds.filter(el => el.closest('.hero, .section--hero') && !box(el).querySelector('[data-print], [data-scene]'));
-  const live = el => moving.includes(el);
+  const live = (el: HTMLElement) => moving.includes(el);
   const [fx, ui] = await Promise.all([
-    grounds.length || glows.length ? import(new URL('effects/fx.js', HERE).href).then(m => m.default) : null,
-    import(new URL('ui/ui.js', HERE).href).then(m => m.default),
+    grounds.length || glows.length ? import(new URL('effects/fx.js', HERE).href).then((m: { default: Fx }) => m.default) : null,
+    import(new URL('ui/ui.js', HERE).href).then((m: { default: typeof uiKit }) => m.default),
   ]);
-  const name = el => el.dataset.uiLoad || el.dataset.ui || '';
-  const loops = el => !phone && !!el.closest('[data-ui-loop], [data-ui-cycles]');
+  const name = (el: HTMLElement) => el.dataset.uiLoad || el.dataset.ui || '';
+  const loops = (el: HTMLElement) => !phone && !!el.closest('[data-ui-loop], [data-ui-cycles]');
   // a fragment that does not loop is held on its finished picture as soon as its own load resolves
   frags.forEach(el => { if (!loops(el)) el.setAttribute('data-ui-still', ''); });
-  const opts = el => { try { return JSON.parse(el.dataset.uiOpts || '{}'); } catch { return {}; } };
-  const run = el => (el.dataset.uiLoad ? ui.load(el, el.dataset.uiLoad, opts(el)) : ui.start(el)).catch(e => console.warn(e));
+  const opts = (el: HTMLElement) => { try { return JSON.parse(el.dataset.uiOpts || '{}'); } catch { return {}; } };
+  const run = (el: HTMLElement) => (el.dataset.uiLoad ? ui.load(el, el.dataset.uiLoad, opts(el)) : ui.start(el)).catch(e => console.warn(e));
 
   if (fx) lightGrounds();
   await Promise.all([
@@ -373,7 +378,7 @@ async function visuals() {
     ...frags.map(run),
   ]);
   // the hero's ground moves, so it gets the pause button every loop has (one per frame, shared)
-  if (fx && ui) moving.forEach(el => { const c = fx.get(el); if (c) ui.pausable(el.closest('.panel__screen, .panel, .frame') || el, c); });
+  if (fx && ui) moving.forEach(el => { const c = fx.get(el); if (c) ui.pausable(el.closest<HTMLElement>('.panel__screen, .panel, .frame') || el, c); });
   if (fx && glows.length) glowOnHover(fx, glows);
 }
 
@@ -383,7 +388,7 @@ async function visuals() {
 function tone() {
   const c = rgb(getComputedStyle(document.documentElement).getPropertyValue('--p-bg'));
   if (!c) return;
-  const lin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const lin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
   const L = 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
   document.documentElement.dataset.tone = L < 0.18 ? 'dark' : 'light';
 }
@@ -395,7 +400,7 @@ function tone() {
 function pictures() {
   const html = document.documentElement;
   let broken = 0;
-  const fail = img => {
+  const fail = (img: HTMLImageElement) => {
     if (img.dataset.broken != null) return;
     img.dataset.broken = '';
     img.setAttribute('data-placeholder', '');
@@ -407,8 +412,8 @@ function pictures() {
     if (img.complete && img.getAttribute('src') && !img.naturalWidth) img.decode().catch(() => fail(img));
     else img.addEventListener('error', () => fail(img), { once: true });
   });
-  const eager = () => document.querySelectorAll('img[loading="lazy"]').forEach(img => { img.loading = 'eager'; });
-  const idle = window.requestIdleCallback || (f => setTimeout(f, 200));
+  const eager = () => document.querySelectorAll<HTMLImageElement>('img[loading="lazy"]').forEach(img => { img.loading = 'eager'; });
+  const idle: (f: () => void) => void = window.requestIdleCallback || ((f: () => void) => setTimeout(f, 200));
   if (document.readyState === 'complete') idle(eager);
   else window.addEventListener('load', () => idle(eager), { once: true });
 }
@@ -427,19 +432,19 @@ function guards() {
     acceptNode: t => (t.parentElement?.closest('script, style, template, noscript') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
   });
   for (let t = walk.nextNode(); t; t = walk.nextNode()) {
-    if (PLACEHOLDER.test(t.textContent)) { t.parentElement.setAttribute('data-placeholder', ''); n++; }
+    if (PLACEHOLDER.test(t.textContent!)) { t.parentElement!.setAttribute('data-placeholder', ''); n++; }
   }
-  document.querySelectorAll('img[alt]').forEach(img => { if (PLACEHOLDER.test(img.alt)) { img.setAttribute('data-placeholder', ''); n++; } });
+  document.querySelectorAll<HTMLImageElement>('img[alt]').forEach(img => { if (PLACEHOLDER.test(img.alt)) { img.setAttribute('data-placeholder', ''); n++; } });
   // the old figures note, whatever its words
   document.querySelectorAll('.figures-note').forEach(el => { if (!el.hasAttribute('data-placeholder')) { el.setAttribute('data-placeholder', ''); n++; } });
   if (n) { html.dataset.placeholders = String(n); console.warn(`system.js: ${n} placeholder, sample tag, apology or .example address left in visible text`); }
   // an effect id in at most two sections (a card group counts once; the closing band is a section)
-  const seen = new Map();
-  document.querySelectorAll('[data-fx]').forEach(el => {
+  const seen = new Map<string | undefined, Set<Element>>();
+  document.querySelectorAll<HTMLElement>('[data-fx]').forEach(el => {
     if (el.closest('.nav')) return;   // the menu card's panel is hidden until hover: not counted
     const sec = el.closest('section, footer') || el;
     if (!seen.has(el.dataset.fx)) seen.set(el.dataset.fx, new Set());
-    seen.get(el.dataset.fx).add(sec);
+    seen.get(el.dataset.fx)!.add(sec);
   });
   const repeat = [...seen].filter(([, s]) => s.size > 2).map(([id]) => id);
   if (repeat.length) { html.dataset.fxRepeat = repeat.join(' '); console.warn(`system.js: effect in more than two sections: ${repeat.join(', ')}`); }
@@ -450,7 +455,7 @@ function guards() {
    holds a [data-moment]; data-ready waits for them. mount is idempotent, so nothing mounts twice. */
 async function moments() {
   if (!document.querySelector('[data-moment]')) return;
-  const m = await import(new URL('moments/moments.js', HERE).href);
+  const m: { ready?: Promise<unknown> } = await import(new URL('moments/moments.js', HERE).href);
   await m.ready;
 }
 
