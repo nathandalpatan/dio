@@ -4,9 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DIO: pop-up dictionary for Windows</title>
-<meta name="description" content="Highlight a word in any Windows app and press Ctrl + Alt + D to see its meaning, pronunciation and a spoken reading, with 152,000 words available offline.">
+<meta name="description" content="Select a word in many Windows apps and press Ctrl + Alt + D to see its meaning and pronunciation, with 152,000 words available offline.">
 <meta name="site-kind" content="software">
 <meta name="page-type" content="software">
+<meta name="theme-color" content="#0a0d14">
+<meta property="og:type" content="website">
+<meta property="og:title" content="DIO: pop-up dictionary for Windows">
+<meta property="og:description" content="Look up a word beside what you are reading. DIO brings meanings, pronunciation and local speech to Windows apps.">
+<meta property="og:image" content="https://nathandalpatan.github.io/dio/assets/shots/chrome.jpg">
+<meta property="og:url" content="https://nathandalpatan.github.io/dio/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -45,28 +51,111 @@
   .shot > .frame__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: var(--pos, 50%) 50%; }
   .popup-stage { display: grid; place-items: center; height: 100%; min-height: 420px; border-radius: var(--r-lg); padding: var(--s-6); }
   .popup-stage img { position: relative; width: min(100%, 432px); height: auto; border-radius: var(--r-md); box-shadow: 0 24px 64px rgb(0 0 0 / .45); }
-  .panel.ui-shot { display: grid; place-items: center; height: 240px; padding: var(--s-5); }
-  .ui-shot img { position: relative; max-width: 100%; height: auto; border-radius: var(--r-sm); }
-  .ui-shot__keys { position: relative; font-size: 28px; color: var(--p-inv-ink); }
   .install__get { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-5); margin-top: var(--s-9); }
-  @media (max-width: 639px) { .ui-shot { height: 160px; } .install__get { margin-top: var(--s-6); } }
+  @media (max-width: 639px) { .install__get { margin-top: var(--s-6); } }
   @media (max-width: 639px) { .popup-stage { min-height: 0; padding: var(--s-3); } }
   .step { font: 500 var(--t-small)/1 var(--font-mono); color: var(--accent); }
   kbd { font: 500 .92em var(--font-mono); white-space: nowrap; }
+  .skip-link { position: fixed; z-index: 100; top: var(--s-3); left: var(--gut); padding: var(--s-3) var(--s-4); background: var(--p-ink); color: var(--p-bg); transform: translateY(-150%); }
+  .skip-link:focus { transform: translateY(0); }
+  .hero__text { display: flex; flex-direction: column; }
+  .hero__lead { margin-top: var(--s-6); }
+  .hero-facts { margin-top: auto; padding-top: var(--s-7); }
+  @keyframes hero-arrive { from { opacity: 0; transform: translateY(12px); } }
+  .hero[data-enter] .hero__text { animation: hero-arrive 560ms ease-out both; }
+  .hero[data-enter] .hero__media { animation: hero-arrive 640ms 90ms ease-out both; }
+  .demo-media { background: #17202c; }
+  .demo-media > .demo__scene { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
+  .demo-media > .demo__scene.is-active { display: block; }
+  .demo-media > .demo__scene--select.is-active { display: grid; place-items: center; }
+  .demo__scene--select { padding: var(--s-7); background: #d8e2eb; }
+  .demo__scene--select p { max-width: 24ch; color: #223344; font-size: clamp(24px, 3vw, 42px); line-height: 1.4; }
+  .demo__scene--select mark { background: #9bd7ff; color: #122335; }
+  .demo-media > .demo__scene--screen { object-fit: cover; object-position: 50% 62%; }
+  .demo-media > .demo__scene--expanded { object-fit: contain; padding: var(--s-8); background: #d8e2eb; }
+  .demo__controls { position: absolute; z-index: 2; left: var(--s-4); right: var(--s-4); bottom: var(--s-4); display: flex; align-items: center; gap: var(--s-2); }
+  .demo__controls button, .demo__status { min-height: 44px; padding: 0 var(--s-3); border: 1px solid transparent; border-radius: var(--r-btn); background: #181b22; color: #fff; font: 500 var(--t-small)/1.2 var(--font-text); }
+  .demo__controls button { cursor: pointer; }
+  .demo__controls button:hover { background: #26384b; }
+  .demo__controls button:active { transform: translateY(1px); }
+  .demo__controls button:disabled { opacity: .45; cursor: default; }
+  .demo__status { display: grid; align-items: center; margin-left: auto; }
+  .process { background: var(--p-inv-bg); color: var(--p-inv-ink); --ink: var(--p-inv-ink); --muted: var(--p-inv-muted); --line: color-mix(in oklab, var(--ink) 15%, transparent); }
+  .process .section-head { margin-bottom: var(--s-7); }
+  .process__grid { flex: 1; align-items: stretch; }
+  .process__step { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+  .process__step h3 { font-size: var(--t-card); }
+  .process__step p { max-width: 32ch; color: var(--muted); }
+  .process__visual { display: grid; place-items: center; flex: 1; min-height: 0; overflow: hidden; padding: var(--s-5); background: #cbd7e5; border-radius: var(--r-md); }
+  .process__visual img { max-height: 100%; width: 100%; object-fit: contain; box-shadow: 0 12px 32px rgb(0 0 0 / .2); }
+  .process__selection { max-width: 27ch; font-size: clamp(21px, 2vw, 30px); line-height: 1.45; color: #273447; }
+  .process__selection mark { padding: 0 .12em; background: #9bd7ff; color: #122335; }
+  .process__step:nth-child(2) .process__visual { padding: 0; }
+  .process__step:nth-child(2) .process__visual img { height: 100%; object-fit: cover; object-position: 49% 58%; }
+  .process__step:last-child .process__visual { background: #d9e2eb; }
+  .process .step { color: #146ca9; }
+  .shot { --ratio: 70%; }
+  .shot > .frame__img { object-position: var(--pos, 50%) 55%; }
+  .speech__grid { align-items: stretch; }
+  .speech__visual { display: grid; align-content: center; justify-items: center; gap: var(--s-7); min-height: 420px; padding: var(--s-7); background: #d8e2eb; border-radius: var(--r-lg); }
+  .speech__visual img { width: min(100%, 360px); height: auto; box-shadow: 0 18px 48px rgb(0 0 0 / .2); }
+  .speech__shortcut { font-size: clamp(24px, 3vw, 40px); color: #1d3042; }
+  .speech__points { display: grid; align-content: center; }
+  .speech__points li { padding: var(--s-6) 0; border-bottom: 1px solid var(--line); }
+  .speech__points li:first-child { padding-top: 0; }
+  .speech__points h3 { margin-bottom: var(--s-2); font-size: var(--t-card); }
+  .speech__points p { color: #b1bac8; }
+  .install__steps { counter-reset: install; }
+  .install__steps .card { min-height: 240px; }
+  .install__steps .card h3 { margin-top: var(--s-6); }
+  .install__note { margin-top: var(--s-6); color: #b1bac8; font-size: var(--t-small); }
+  .close__word { overflow: visible; line-height: 1; }
+  @media (prefers-reduced-motion: reduce) { .hero[data-enter] .hero__text, .hero[data-enter] .hero__media { animation: none; } }
+  @media (max-width: 1023px) {
+    .hero-facts { margin-top: var(--s-6); padding-top: 0; }
+    .process__grid { row-gap: var(--s-6); }
+    .process__visual { min-height: 260px; }
+    .install__steps .card { min-height: 0; }
+  }
+  @media (max-width: 1023px), (max-height: 700px) {
+    main > .hero { height: auto; min-height: 100svh; }
+    main > .hero > .wrap, .hero > .wrap > .hero-text { height: auto; }
+    .hero-text.hero__grid { grid-template-rows: auto; }
+    .hero--split .hero__media { height: auto; min-height: 280px; aspect-ratio: 16 / 10; }
+    main > :is(section, .section):not(.hero, .section--hero), footer.closing { height: auto; min-height: 100svh; }
+    main > :is(section, .section):not(.hero, .section--hero) > :is(.wrap, .container), footer.closing > .wrap { height: auto; }
+    main > :is(section, .section):not(.hero, .section--hero) > .wrap > .fill { flex: none; }
+  }
+  @media (max-width: 639px) {
+    .hero__lead { margin-top: var(--s-4); }
+    .nav__logo, .footer__col a, #questions .link { display: inline-flex; align-items: center; min-height: 44px; }
+    .tabs .tab { display: inline-flex; align-items: center; min-height: 44px; padding: 0; }
+    .hero--split .demo-media { margin-top: var(--s-6); min-height: 220px; }
+    .demo-media > .demo__scene--screen { object-position: 49% 64%; }
+    .demo-media > .demo__scene--expanded { padding: var(--s-4); }
+    .demo__controls { left: var(--s-2); right: var(--s-2); bottom: var(--s-2); gap: 4px; }
+    .demo__controls button, .demo__status { padding-inline: var(--s-2); font-size: 12px; }
+    .process__visual { min-height: 220px; height: 220px; }
+    .speech__visual { min-height: 280px; padding: var(--s-4); }
+  }
+  @media (max-width: 359px) {
+    .nav:not(.is-open) .nav__actions { display: none; }
+  }
 </style>
 </head>
 <body>
 <!-- type: software
-     deal: hero split, nav nav-centre (dealt nav-cards: no photographs for its panel), close close-word,
-     footer footer-columns, rhythm space, buttons tonal, mark wordmark, palette blue-black-cornflower,
-     type instrument, radius sharp (no pill shapes). No effect, moment or scene: the real screenshots carry the page. -->
+     deal: hero split, nav nav-centre, close close-word, footer footer-columns,
+     rhythm space, buttons tonal, mark wordmark, palette blue-black-cornflower,
+     type instrument, radius sharp. Real DIO UI and the lookup walkthrough carry the page. -->
+<a class="skip-link" href="#main-content">Skip to content</a>
 
 <header class="nav nav--centre">
   <div class="wrap nav__bar">
     <a class="nav__logo" href="#top">DIO</a>
     <nav class="nav__links" aria-label="Main">
+      <div class="nav__item"><a class="nav__link" href="#workflow">How it works</a></div>
       <div class="nav__item"><a class="nav__link" href="#apps">Apps</a></div>
-      <div class="nav__item"><a class="nav__link" href="#lookups">Lookups</a></div>
       <div class="nav__item"><a class="nav__link" href="#speech">Speech</a></div>
       <div class="nav__item"><a class="nav__link" href="#install">Install</a></div>
       <div class="nav__item"><a class="nav__link" href="#questions">Questions</a></div>
@@ -80,15 +169,14 @@
   </div>
 </header>
 
-<main id="top">
-  <section class="hero hero--split" aria-labelledby="hero-h">
+<main id="main-content">
+  <section class="hero hero--split" id="top" aria-labelledby="hero-h" data-enter>
     <div class="wrap"><div class="hero-text grid hero__grid">
       <div class="hero__text span-5">
         <h1 id="hero-h">A pop-up dictionary for Windows</h1>
-        <p class="hero__lead">Highlight a word in any app and press <kbd>Ctrl + Alt + D</kbd>. Its meaning, pronunciation and a voice that reads it appear beside the word, so you never leave what you are reading.</p>
+        <p class="hero__lead">Select a word and press <kbd>Ctrl + Alt + D</kbd>. DIO opens its meaning and pronunciation beside what you are reading, in many Windows apps.</p>
         <div class="btn-row">
           <a class="btn btn--primary" href="https://github.com/nathandalpatan/dio/releases/latest/download/DIO-setup.exe">Download for Windows<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
-          <a class="btn btn--secondary" href="#apps">See it in apps</a>
         </div>
         <dl class="hero-facts">
           <div><dt>Words offline</dt><dd>152,000</dd></div>
@@ -96,10 +184,47 @@
           <div><dt>Runs on</dt><dd>Windows 10 and 11</dd></div>
         </dl>
       </div>
-      <div class="hero__media span-6 start-7">
-        <img src="assets/shots/chrome.jpg" alt="DIO's popup defining the word collisions over a Wikipedia article in Chrome" width="1426" height="893" style="--ly-pos: 48% 50%" fetchpriority="high">
+      <div class="hero__media demo-media span-6 start-7" data-demo aria-label="Silent DIO walkthrough">
+        <div class="demo__scene demo__scene--select" data-demo-scene="0"><p>The <mark>collisions</mark> were difficult to predict.</p></div>
+        <img class="demo__scene demo__scene--screen is-active" data-demo-scene="1" src="assets/shots/chrome.jpg" alt="DIO defining collisions beside an article in Chrome" width="1426" height="893" fetchpriority="high">
+        <img class="demo__scene demo__scene--expanded" data-demo-scene="2" src="assets/shots/popup-expanded.jpg" alt="DIO's expanded entry for collisions" width="499" height="373">
+        <div class="demo__controls">
+          <button type="button" data-demo-play>Play walkthrough</button>
+          <span class="demo__status" data-demo-status aria-live="polite">Preview</span>
+          <button type="button" data-demo-prev aria-label="Previous step">←</button>
+          <button type="button" data-demo-next aria-label="Next step">→</button>
+        </div>
       </div>
     </div></div>
+  </section>
+
+  <section class="section process" id="workflow" aria-labelledby="workflow-h">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 id="workflow-h">From selected word to answer</h2>
+        <p>A shortcut brings the dictionary to your reading. The full entry is there when you need more.</p>
+      </div>
+      <div class="grid process__grid">
+        <article class="process__step span-4">
+          <span class="step">01 / SELECT</span>
+          <h3>Choose a word</h3>
+          <p>Highlight a word in an app you are reading.</p>
+          <div class="process__visual"><p class="process__selection">The <mark>collisions</mark> were difficult to predict.</p></div>
+        </article>
+        <article class="process__step span-4">
+          <span class="step">02 / LOOK UP</span>
+          <h3>Open DIO beside it</h3>
+          <p>Press <kbd>Ctrl + Alt + D</kbd> to see a plain-English meaning.</p>
+          <div class="process__visual"><img src="assets/shots/chrome.jpg" alt="DIO's compact definition beside the selected word collisions" width="1426" height="893" loading="lazy"></div>
+        </article>
+        <article class="process__step span-4">
+          <span class="step">03 / GO DEEPER</span>
+          <h3>Expand the entry</h3>
+          <p>Read further definitions, examples and related words when available.</p>
+          <div class="process__visual"><img src="assets/shots/popup-expanded.jpg" alt="DIO's expanded entry for collisions" width="499" height="373" loading="lazy"></div>
+        </article>
+      </div>
+    </div>
   </section>
 
   <section class="section" id="apps" aria-labelledby="apps-h">
@@ -116,7 +241,7 @@
             <button class="tab" type="button" role="tab" id="tab-terminal" aria-selected="false" aria-controls="panel-terminal screen-terminal">Terminal</button>
             <button class="tab" type="button" role="tab" id="tab-steam" aria-selected="false" aria-controls="panel-steam screen-steam">Steam</button>
           </div>
-          <div class="tour__panel" role="tabpanel" id="panel-chrome" aria-labelledby="tab-chrome"><p>Double-click a word in an article. DIO reads the selection through Windows accessibility, so your clipboard is never touched.</p></div>
+          <div class="tour__panel" role="tabpanel" id="panel-chrome" aria-labelledby="tab-chrome"><p>Double-click a word in an article. DIO tries Windows accessibility first, then copies and restores the clipboard if needed.</p></div>
           <div class="tour__panel" role="tabpanel" id="panel-acrobat" aria-labelledby="tab-acrobat" hidden><p>Look up words in Adobe Acrobat and other PDF readers. A comma or quote mark picked up with the word is left out.</p></div>
           <div class="tour__panel" role="tabpanel" id="panel-terminal" aria-labelledby="tab-terminal" hidden><p>Look up jargon in Windows Terminal. DIO copies with <kbd>Ctrl + Insert</kbd>, so the running program is never interrupted.</p></div>
           <div class="tour__panel" role="tabpanel" id="panel-steam" aria-labelledby="tab-steam" hidden><p>Read a store page in Steam and check a word without leaving it. Your previous clipboard comes back after every lookup.</p></div>
@@ -152,28 +277,23 @@
     </div>
   </section>
 
-  <section class="section" id="speech" style="--hm: 2" aria-labelledby="speech-h">
+  <section class="section" id="speech" aria-labelledby="speech-h">
     <div class="wrap">
       <div class="section-head">
         <h2 id="speech-h">Speech that runs on your computer</h2>
         <p>DIO speaks with Kokoro, an open voice model. Install it once from Settings, about 95 MB, and it works offline.</p>
       </div>
-      <div class="grid">
-        <article class="card card--open span-4">
-          <h3>Says any word</h3>
-          <p>Click the speaker beside the IPA to hear the word in a US or UK voice.</p>
-          <div class="panel ui-shot"><img src="assets/shots/popup-ipa.jpg" alt="The popup's headword bisect with its US IPA and a speaker button" width="360" height="78" loading="lazy"></div>
-        </article>
-        <article class="card card--open span-4">
-          <h3>Reads a selection aloud</h3>
-          <p>Select up to 2,000 characters in any app and press the shortcut. Press it again to stop.</p>
-          <div class="panel ui-shot"><kbd class="ui-shot__keys">Ctrl + Alt + R</kbd></div>
-        </article>
-        <article class="card card--open span-4">
-          <h3>Keeps your text private</h3>
-          <p>Speech is made on your CPU, so nothing you have read aloud is sent anywhere.</p>
-          <div class="panel ui-shot"><img src="assets/shots/popup-voice.jpg" alt="The popup's voice bar: Kokoro Heart, US English, a play button and Expand" width="360" height="34" loading="lazy"></div>
-        </article>
+      <div class="grid speech__grid fill">
+        <ul class="speech__points span-5">
+          <li><h3>Hear a word</h3><p>Click the speaker beside its pronunciation. DIO uses an available recording or the installed Kokoro voice.</p></li>
+          <li><h3>Read selected text</h3><p>Select up to 2,000 characters and press <kbd>Ctrl + Alt + R</kbd>. Press it again to stop.</p></li>
+          <li><h3>Keep speech local</h3><p>Once installed, Kokoro makes speech on your CPU. The text you read aloud stays on your computer.</p></li>
+        </ul>
+        <div class="speech__visual span-6 start-7">
+          <img src="assets/shots/popup-ipa.jpg" alt="DIO's pronunciation and speaker control" width="360" height="78" loading="lazy">
+          <kbd class="speech__shortcut">Ctrl + Alt + R</kbd>
+          <img src="assets/shots/popup-voice.jpg" alt="DIO's local voice controls" width="360" height="34" loading="lazy">
+        </div>
       </div>
     </div>
   </section>
@@ -182,9 +302,9 @@
     <div class="wrap">
       <div class="section-head">
         <h2 id="install-h">Install DIO in 3 steps</h2>
-        <p>No account and no admin rights. DIO starts in the system tray.</p>
+        <p>No account. No admin rights. DIO starts in the system tray.</p>
       </div>
-      <div class="grid">
+      <div class="grid install__steps">
         <article class="card span-4">
           <span class="step">1</span>
           <h3>Download the installer</h3>
@@ -192,8 +312,8 @@
         </article>
         <article class="card span-4">
           <span class="step">2</span>
-          <h3>Allow it past SmartScreen</h3>
-          <p>DIO is not code-signed yet. If Windows protected your PC, click More info, then Run anyway.</p>
+          <h3>Run the installer</h3>
+          <p>Open the downloaded file and follow the installer prompts.</p>
         </article>
         <article class="card span-4">
           <span class="step">3</span>
@@ -205,6 +325,7 @@
         <a class="btn btn--secondary" href="https://github.com/nathandalpatan/dio/releases">See all releases</a>
         <span class="muted">Version 0.1.1 for 64-bit Windows 10 and 11</span>
       </div>
+      <p class="install__note">DIO is not code-signed yet. If Windows SmartScreen warns you, choose More info, then Run anyway.</p>
     </div>
   </section>
 
@@ -258,5 +379,6 @@
 <script type="module" src="assets/system.js"></script>
 <script type="module" src="assets/motion/motion.js"></script>
 <script type="module" src="assets/layout/layout.js"></script>
+<script type="module" src="assets/demo.js"></script>
 </body>
 </html>
