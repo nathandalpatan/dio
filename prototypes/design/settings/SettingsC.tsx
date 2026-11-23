@@ -1,0 +1,3 @@
+import { SettingsNav, SettingsPanel, useSettingsModel } from './shared';
+
+export function SettingsC() { const model = useSettingsModel(); return <div className={`settings-stage theme-${model.settings.theme} ${model.settings.reducedMotion ? 'reduced-motion' : ''}`}><div className="settings-window settings-c"><header className="settings-c__head"><strong>DIO Settings</strong><span>Changes save as you make them</span></header><aside className="settings-sidebar"><h2>Choose a task</h2><SettingsNav model={model} taskLabels/><div className="settings-c__status"><span aria-hidden="true">●</span> Local dictionary ready</div></aside><SettingsPanel model={model} taskLabels/></div></div>; }

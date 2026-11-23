@@ -1,0 +1,8 @@
+import { AppGallery, Install, PopupPreview, Questions, SiteFooter, SiteNav, Speech, Walkthrough, download } from './shared';
+
+export function WebsiteC() { return <div className="site site-c" id="top"><SiteNav concept="Direct Utility"/><main>
+  <section className="site-hero"><div className="site-wrap site-hero__grid"><div className="site-hero__copy"><span className="eyebrow">Windows dictionary · local speech</span><h1>Look up a word without leaving your app</h1><p>Select text and press Ctrl + Alt + D. DIO shows the definition beside your work, even offline for over 152,000 English words.</p><a className="site-button" href={download}>Download for Windows</a><a className="hero-text-link" href="#how">See how lookup works ↓</a></div><div className="site-hero__product"><img src="../../site/assets/shots/chrome.jpg" alt="DIO defining a selected word in Chrome"/><div className="site-c__mobile-preview"><PopupPreview/></div><div className="hero-facts"><span>Ctrl + Alt + D<strong>Lookup shortcut</strong></span><span>152,000+<strong>Offline words</strong></span><span>Local<strong>Speech and saved words</strong></span></div></div></div></section>
+  <section className="site-section how-section" id="how"><div className="site-wrap split-section"><div className="section-intro"><h2>How lookup works</h2><p>Three steps from selected text to the answer.</p></div><Walkthrough compact/></div></section>
+  <section className="site-section apps-section" id="apps"><div className="site-wrap split-section"><div className="section-intro"><h2>Supported reading contexts</h2><p>See the popup in real Windows apps.</p></div><AppGallery/></div></section>
+  <Speech/><Install/><Questions/>
+  </main><SiteFooter/></div>; }
