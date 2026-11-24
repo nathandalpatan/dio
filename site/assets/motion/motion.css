@@ -145,13 +145,20 @@ html:not([data-motion="off"]) .tabs.m-has-ind .tab[aria-selected="true"] { backg
 .m-tab-ind.is-jump { transition: none; }
 html:not([data-motion="off"]) .tab { transition: color var(--m-slide) var(--m-ease), border-color var(--m-out) var(--m-ease), background-color var(--m-out) var(--m-ease); }
 
-/* ---------------------------------------------------------------- focus: the ring settles in */
-/* only on the plain controls, never on a part of a loop, and not on an element that runs its own
-   animation (mark it .m-anim): an animation set here would replace that element's own */
-html:not([data-motion="off"]) :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible:not([data-m-loop] *, .m-anim, .loop-pause) {
-  animation: m-focus var(--m-out) var(--m-ease);
+/* Keyboard focus is immediate, including decorative arrows and underlines. */
+html:not([data-motion="off"]) :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
+html:not([data-motion="off"]) :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible::before,
+html:not([data-motion="off"]) :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible::after,
+html:not([data-motion="off"]) :is(a, button):focus-visible > .m-arrow :is(.m-arrow__stem, .m-arrow__head) {
+  transition-duration: 0ms !important;
 }
-@keyframes m-focus { from { outline-offset: 6px; outline-color: transparent; } }
+@media (min-width: 1024px) {
+  html:not([data-motion="off"]) .nav__item:focus-within > .nav__menu,
+  html:not([data-motion="off"]) .nav__item:focus-within > .nav__menu .grid > * {
+    transition-duration: 0ms !important;
+    transition-delay: 0ms !important;
+  }
+}
 
 /* ---------------------------------------------------------------- cards: a 2px lift */
 /* the card rises 2px, its border and shadow deepen; a card without its own box (.card--open) lifts
@@ -260,7 +267,6 @@ html:not([data-motion="off"]) .field :is(input, select, textarea):focus, .m-inpu
   :is(a, button):hover > .m-arrow :is(.m-arrow__head, .m-arrow__stem) { transform: none !important; }
   .m-arrow__stem { opacity: 1; transform: none; }
   html:not([data-motion="off"]) .nav__menu, html:not([data-motion="off"]) .nav__menu .grid > * { transform: none !important; }
-  html:not([data-motion="off"]) :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { animation: none; }
   [data-m-loop] * { animation-duration: var(--m-cycle) !important; animation-iteration-count: infinite !important;
                     animation-delay: calc(-1 * var(--m-still) * var(--m-cycle)) !important; animation-play-state: paused !important; }
 }

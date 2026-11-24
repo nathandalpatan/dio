@@ -15,7 +15,7 @@
 <meta property="og:url" content="https://nathandalpatan.github.io/dio/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wdth,wght@75..100,400..700&family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Source+Serif+4:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/system.css">
 <link rel="stylesheet" href="assets/ui/cards.css">
 <link rel="stylesheet" href="assets/motion/motion.css">
@@ -46,53 +46,77 @@
   .tab[aria-selected="true"] { background: none; color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); }
   .tabs .m-tab-ind { height: 2px; margin-top: calc(var(--h, 0px) - 2px); border-radius: 0; background: var(--accent); }
   .tour__panel { min-height: 6.5em; margin-top: var(--s-5); }
-  /* taller than the screenshots, cropped around each popup so its text stays readable */
   .shot { --ratio: 90%; border-radius: var(--r-lg); overflow: hidden; background: var(--surface); }
   .shot > .frame__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: var(--pos, 50%) 50%; }
-  .popup-stage { display: grid; place-items: center; height: 100%; min-height: 420px; border-radius: var(--r-lg); padding: var(--s-6); }
-  .popup-stage img { position: relative; width: min(100%, 432px); height: auto; border-radius: var(--r-md); box-shadow: 0 24px 64px rgb(0 0 0 / .45); }
+  .app-shot { min-width: 0; }
+  .shot-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: var(--s-3); color: var(--ink); font-size: var(--t-small); text-underline-offset: 4px; }
+  .shot-link:hover { color: var(--action); text-decoration: underline; }
+  .dio-popup { width: min(100%, 430px); color: #e8eaed; background: #0e1116; border: 1px solid #2a2f36; border-radius: 7px; box-shadow: 0 24px 64px rgb(0 0 0 / .35); font-family: Inter, "Segoe UI", system-ui, sans-serif; text-align: left; overflow: hidden; }
+  .dio-popup * { box-sizing: border-box; }
+  .dio-popup__header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 38px; padding: 0 12px; border-bottom: 1px solid #2a2f36; }
+  .dio-popup__brand { font: 700 18px/1 "Source Serif 4", Georgia, serif; }
+  .dio-popup__icon { font: 400 22px/1 Inter, sans-serif; }
+  .dio-popup__icon:last-child { justify-self: end; }
+  .dio-popup__content { padding: 13px 15px 15px; }
+  .dio-popup__word { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  .dio-popup__word strong { font: 700 29px/1.15 "Source Serif 4", Georgia, serif; }
+  .dio-popup__word .dio-popup__icon { font-size: 23px; }
+  .dio-popup__phonetic { display: flex; align-items: center; gap: 9px; margin-top: 4px; min-height: 26px; font-size: 15px; }
+  .dio-popup__part { color: #9aa1ab; font: italic 14px "Source Serif 4", Georgia, serif; }
+  .dio-popup__accent { padding: 2px 6px; border-radius: 4px; color: #e8eaed; background: #222832; font: 600 11px/16px Inter, sans-serif; }
+  .dio-popup__speaker { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .dio-popup__tabs { display: flex; border-bottom: 1px solid #2a2f36; margin-top: 10px; font-size: 13px; }
+  .dio-popup__tabs span { flex: 1; padding: 8px 0 10px; text-align: center; color: #9aa1ab; }
+  .dio-popup__tabs .is-current { color: #8fc7ff; border-bottom: 3px solid #8fc7ff; font-weight: 600; }
+  .dio-popup__sense { margin-top: 11px; padding: 10px 12px; border-left: 3px solid #8fc7ff; border-radius: 0 6px 6px 0; background: #171b22; font-family: "Source Serif 4", Georgia, serif; }
+  .dio-popup__sense b { display: block; font-size: 15px; }
+  .dio-popup__sense p { margin: 4px 0 0; font-size: 15px; line-height: 1.4; }
+  .dio-popup__details { margin-top: 15px; border-top: 1px solid #2a2f36; font-family: "Source Serif 4", Georgia, serif; }
+  .dio-popup__details p { margin: 0; padding: 12px 0; border-bottom: 1px solid #2a2f36; font-size: 15px; line-height: 1.4; }
+  .dio-popup__details small { display: block; margin-bottom: 4px; font-size: 14px; font-weight: 600; }
+  .dio-popup__details .dio-popup__source { border: 0; color: #9aa1ab; font: 12px/1.4 Inter, sans-serif; }
+  .dio-popup__footer { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 40px; padding: 5px 12px; border-top: 1px solid #2a2f36; font-size: 12px; }
+  .dio-popup__footer span:last-child { flex: none; }
+  .popup-stage { display: grid; place-items: center; min-width: 0; padding: var(--s-6); border-radius: var(--r-lg); background: #d8e2eb; }
+  .hero__media.popup-stage { min-height: 420px; }
   .install__get { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-5); margin-top: var(--s-9); }
   @media (max-width: 639px) { .install__get { margin-top: var(--s-6); } }
-  @media (max-width: 639px) { .popup-stage { min-height: 0; padding: var(--s-3); } }
+  @media (max-width: 639px) { .popup-stage { padding: var(--s-3); } }
   .step { font: 500 var(--t-small)/1 var(--font-mono); color: var(--accent); }
   kbd { font: 500 .92em var(--font-mono); white-space: nowrap; }
   .skip-link { position: fixed; z-index: 100; top: var(--s-3); left: var(--gut); padding: var(--s-3) var(--s-4); background: var(--p-ink); color: var(--p-bg); transform: translateY(-150%); }
   .skip-link:focus { transform: translateY(0); }
   .hero__text { display: flex; flex-direction: column; }
   .hero__lead { margin-top: var(--s-6); }
-  .hero-facts { margin-top: auto; padding-top: var(--s-7); }
   @keyframes hero-arrive { from { opacity: 0; transform: translateY(12px); } }
   .hero[data-enter] .hero__text { animation: hero-arrive 560ms ease-out both; }
   .hero[data-enter] .hero__media { animation: hero-arrive 640ms 90ms ease-out both; }
-  .demo-media { background: #17202c; }
-  .demo-media > .demo__scene { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
-  .demo-media > .demo__scene.is-active { display: block; }
-  .demo-media > .demo__scene--select.is-active { display: grid; place-items: center; }
-  .demo__scene--select { padding: var(--s-7); background: #d8e2eb; }
-  .demo__scene--select p { max-width: 24ch; color: #223344; font-size: clamp(24px, 3vw, 42px); line-height: 1.4; }
+  .demo { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--gutter); align-items: start; min-width: 0; }
+  .demo__visual { grid-column: 1 / span 6; min-width: 0; }
+  .demo__text { grid-column: 7 / span 6; }
+  .demo__stage { display: grid; place-items: center; min-height: 410px; padding: var(--s-5); border-radius: var(--r-lg); background: #d8e2eb; }
+  .demo__scene { display: none; width: 100%; min-width: 0; }
+  .demo__scene.is-active { display: grid; place-items: center; }
+  .demo__scene--select p { max-width: 24ch; margin: 0; color: #223344; font-size: clamp(27px, 3vw, 40px); line-height: 1.4; }
   .demo__scene--select mark { background: #9bd7ff; color: #122335; }
-  .demo-media > .demo__scene--screen { object-fit: cover; object-position: 50% 62%; }
-  .demo-media > .demo__scene--expanded { object-fit: contain; padding: var(--s-8); background: #d8e2eb; }
-  .demo__controls { position: absolute; z-index: 2; left: var(--s-4); right: var(--s-4); bottom: var(--s-4); display: flex; align-items: center; gap: var(--s-2); }
-  .demo__controls button, .demo__status { min-height: 44px; padding: 0 var(--s-3); border: 1px solid transparent; border-radius: var(--r-btn); background: #181b22; color: #fff; font: 500 var(--t-small)/1.2 var(--font-text); }
-  .demo__controls button { cursor: pointer; }
-  .demo__controls button:hover { background: #26384b; }
+  .demo__copy { display: none; }
+  .demo__copy.is-active { display: block; }
+  .demo__copy h3 { margin: var(--s-3) 0; font-size: var(--t-card); }
+  .demo__copy p { color: var(--muted); }
+  @media (min-width: 1024px) {
+    .demo__text { display: grid; gap: var(--s-5); }
+    .demo__copy { display: block; }
+    .demo__copy.is-active h3 { color: #146ca9; }
+  }
+  .demo__controls { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-3); }
+  .demo__controls button { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0 var(--s-3); border: 1px solid #aeb8c5; border-radius: var(--r-btn); background: #fff; color: #0a0d14; font: 500 var(--t-small)/1.2 var(--font-text); cursor: pointer; }
+  .demo__controls button:hover { background: #d8e2eb; }
   .demo__controls button:active { transform: translateY(1px); }
   .demo__controls button:disabled { opacity: .45; cursor: default; }
-  .demo__status { display: grid; align-items: center; margin-left: auto; }
+  .demo__controls button:focus-visible { outline: 3px solid #0a0d14; outline-offset: 2px; }
+  .demo__status { margin-right: auto; color: #54575f; font: 500 var(--t-small)/1.2 var(--font-mono); white-space: nowrap; }
   .process { background: var(--p-inv-bg); color: var(--p-inv-ink); --ink: var(--p-inv-ink); --muted: var(--p-inv-muted); --line: color-mix(in oklab, var(--ink) 15%, transparent); }
   .process .section-head { margin-bottom: var(--s-7); }
-  .process__grid { flex: 1; align-items: stretch; }
-  .process__step { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
-  .process__step h3 { font-size: var(--t-card); }
-  .process__step p { max-width: 32ch; color: var(--muted); }
-  .process__visual { display: grid; place-items: center; flex: 1; min-height: 0; overflow: hidden; padding: var(--s-5); background: #cbd7e5; border-radius: var(--r-md); }
-  .process__visual img { max-height: 100%; width: 100%; object-fit: contain; box-shadow: 0 12px 32px rgb(0 0 0 / .2); }
-  .process__selection { max-width: 27ch; font-size: clamp(21px, 2vw, 30px); line-height: 1.45; color: #273447; }
-  .process__selection mark { padding: 0 .12em; background: #9bd7ff; color: #122335; }
-  .process__step:nth-child(2) .process__visual { padding: 0; }
-  .process__step:nth-child(2) .process__visual img { height: 100%; object-fit: cover; object-position: 49% 58%; }
-  .process__step:last-child .process__visual { background: #d9e2eb; }
   .process .step { color: #146ca9; }
   .shot { --ratio: 70%; }
   .shot > .frame__img { object-position: var(--pos, 50%) 55%; }
@@ -109,14 +133,19 @@
   .install__steps .card { min-height: 240px; }
   .install__steps .card h3 { margin-top: var(--s-6); }
   .install__note { margin-top: var(--s-6); color: #b1bac8; font-size: var(--t-small); }
+  .install__get .btn--secondary { border-color: #8891a1; }
   .close__word { overflow: visible; line-height: 1; }
-  @media (prefers-reduced-motion: reduce) { .hero[data-enter] .hero__text, .hero[data-enter] .hero__media { animation: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .hero[data-enter] .hero__text, .hero[data-enter] .hero__media { animation: none; }
+    .demo__controls button:active { transform: none; }
+  }
+  html[data-motion="off"] .demo__controls button:active { transform: none; }
   @media (max-width: 1023px) {
-    .hero-facts { margin-top: var(--s-6); padding-top: 0; }
-    .process__grid { row-gap: var(--s-6); }
-    .process__visual { min-height: 260px; }
+    .demo { grid-template-columns: 1fr; }
+    .demo__visual, .demo__text { grid-column: 1; }
     .install__steps .card { min-height: 0; }
   }
+  @media (max-width: 1023px) { .demo__copy { min-height: 120px; } }
   @media (max-width: 1023px), (max-height: 700px) {
     main > .hero { height: auto; min-height: 100svh; }
     main > .hero > .wrap, .hero > .wrap > .hero-text { height: auto; }
@@ -126,21 +155,22 @@
     main > :is(section, .section):not(.hero, .section--hero) > :is(.wrap, .container), footer.closing > .wrap { height: auto; }
     main > :is(section, .section):not(.hero, .section--hero) > .wrap > .fill { flex: none; }
   }
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .hero--split .popup-stage { aspect-ratio: auto; min-height: 368px; }
+  }
   @media (max-width: 639px) {
     .hero__lead { margin-top: var(--s-4); }
     .nav__logo, .footer__col a, #questions .link { display: inline-flex; align-items: center; min-height: 44px; }
     .tabs .tab { display: inline-flex; align-items: center; min-height: 44px; padding: 0; }
-    .hero--split .demo-media { margin-top: var(--s-6); min-height: 220px; }
-    .demo-media > .demo__scene--screen { object-position: 49% 64%; }
-    .demo-media > .demo__scene--expanded { padding: var(--s-4); }
-    .demo__controls { left: var(--s-2); right: var(--s-2); bottom: var(--s-2); gap: 4px; }
-    .demo__controls button, .demo__status { padding-inline: var(--s-2); font-size: 12px; }
-    .process__visual { min-height: 220px; height: 220px; }
+    .hero--split .popup-stage { flex: none; height: auto; min-height: 300px; aspect-ratio: auto; margin-top: var(--s-6); }
+    .demo__stage { min-height: 370px; padding: var(--s-3); }
+    .demo__controls { gap: 4px; }
+    .demo__controls button { padding-inline: var(--s-2); }
     .speech__visual { min-height: 280px; padding: var(--s-4); }
-  }
-  @media (max-width: 359px) {
     .nav:not(.is-open) .nav__actions { display: none; }
+    .nav__toggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: auto; min-width: 44px; padding: 0 12px; }
   }
+  @media (max-width: 359px) { #apps .tabs { gap: 8px; justify-content: space-between; } #apps .tabs .tab { font-size: 14px; } }
 </style>
 </head>
 <body>
@@ -153,7 +183,7 @@
 <header class="nav nav--centre">
   <div class="wrap nav__bar">
     <a class="nav__logo" href="#top">DIO</a>
-    <nav class="nav__links" aria-label="Main">
+    <nav class="nav__links" id="main-nav" aria-label="Main">
       <div class="nav__item"><a class="nav__link" href="#workflow">How it works</a></div>
       <div class="nav__item"><a class="nav__link" href="#apps">Apps</a></div>
       <div class="nav__item"><a class="nav__link" href="#speech">Speech</a></div>
@@ -163,8 +193,8 @@
     <div class="nav__actions">
       <a class="btn btn--primary" href="https://github.com/nathandalpatan/dio/releases/latest/download/DIO-setup.exe">Download for Windows</a>
     </div>
-    <button class="nav__toggle" type="button" aria-expanded="false" aria-label="Menu">
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <button class="nav__toggle" type="button" aria-expanded="false" aria-controls="main-nav" aria-label="Open menu">
+      <span class="nav__toggle-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="nav__toggle-label">Menu</span>
     </button>
   </div>
 </header>
@@ -174,25 +204,21 @@
     <div class="wrap"><div class="hero-text grid hero__grid">
       <div class="hero__text span-5">
         <h1 id="hero-h">A pop-up dictionary for Windows</h1>
-        <p class="hero__lead">Select a word and press <kbd>Ctrl + Alt + D</kbd>. DIO opens its meaning and pronunciation beside what you are reading, in many Windows apps.</p>
+        <p class="hero__lead">Select a word, press <kbd>Ctrl + Alt + D</kbd>, and read its meaning beside your work. DIO includes 152,000 English words offline.</p>
         <div class="btn-row">
           <a class="btn btn--primary" href="https://github.com/nathandalpatan/dio/releases/latest/download/DIO-setup.exe">Download for Windows<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
         </div>
-        <dl class="hero-facts">
-          <div><dt>Words offline</dt><dd>152,000</dd></div>
-          <div><dt>Download</dt><dd>31 MB</dd></div>
-          <div><dt>Runs on</dt><dd>Windows 10 and 11</dd></div>
-        </dl>
       </div>
-      <div class="hero__media demo-media span-6 start-7" data-demo aria-label="Silent DIO walkthrough">
-        <div class="demo__scene demo__scene--select" data-demo-scene="0"><p>The <mark>collisions</mark> were difficult to predict.</p></div>
-        <img class="demo__scene demo__scene--screen is-active" data-demo-scene="1" src="assets/shots/chrome.jpg" alt="DIO defining collisions beside an article in Chrome" width="1426" height="893" fetchpriority="high">
-        <img class="demo__scene demo__scene--expanded" data-demo-scene="2" src="assets/shots/popup-expanded.jpg" alt="DIO's expanded entry for collisions" width="499" height="373">
-        <div class="demo__controls">
-          <button type="button" data-demo-play>Play walkthrough</button>
-          <span class="demo__status" data-demo-status aria-live="polite">Preview</span>
-          <button type="button" data-demo-prev aria-label="Previous step">←</button>
-          <button type="button" data-demo-next aria-label="Next step">→</button>
+      <div class="hero__media popup-stage span-6 start-7">
+        <div class="dio-popup" role="img" aria-label="DIO popup showing collisions, its US pronunciation, and the definition An instance of colliding">
+          <div class="dio-popup__header"><span class="dio-popup__icon">←</span><span class="dio-popup__brand">DIO</span><span class="dio-popup__icon">×</span></div>
+          <div class="dio-popup__content">
+            <div class="dio-popup__word"><strong>collisions</strong><span class="dio-popup__icon">☆</span></div>
+            <div class="dio-popup__phonetic"><span class="dio-popup__accent">US</span><span>/kəˈlɪʒənz/</span><svg class="dio-popup__speaker" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3l4-3.5v12l-4-3.5H4z M15 9a4 4 0 0 1 0 6 M17.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></div>
+            <div class="dio-popup__tabs"><span class="is-current">Definition</span><span>Related</span></div>
+            <div class="dio-popup__sense"><b>noun</b><p>An instance of colliding.</p></div>
+          </div>
+          <div class="dio-popup__footer"><span>Kokoro Heart · US English</span><span>Expand ↘</span></div>
         </div>
       </div>
     </div></div>
@@ -202,27 +228,48 @@
     <div class="wrap">
       <div class="section-head">
         <h2 id="workflow-h">From selected word to answer</h2>
-        <p>A shortcut brings the dictionary to your reading. The full entry is there when you need more.</p>
+        <p>Select a word, press the shortcut, and read its definition beside your work.</p>
       </div>
-      <div class="grid process__grid">
-        <article class="process__step span-4">
-          <span class="step">01 / SELECT</span>
-          <h3>Choose a word</h3>
-          <p>Highlight a word in an app you are reading.</p>
-          <div class="process__visual"><p class="process__selection">The <mark>collisions</mark> were difficult to predict.</p></div>
-        </article>
-        <article class="process__step span-4">
-          <span class="step">02 / LOOK UP</span>
-          <h3>Open DIO beside it</h3>
-          <p>Press <kbd>Ctrl + Alt + D</kbd> to see a plain-English meaning.</p>
-          <div class="process__visual"><img src="assets/shots/chrome.jpg" alt="DIO's compact definition beside the selected word collisions" width="1426" height="893" loading="lazy"></div>
-        </article>
-        <article class="process__step span-4">
-          <span class="step">03 / GO DEEPER</span>
-          <h3>Expand the entry</h3>
-          <p>Read further definitions, examples and related words when available.</p>
-          <div class="process__visual"><img src="assets/shots/popup-expanded.jpg" alt="DIO's expanded entry for collisions" width="499" height="373" loading="lazy"></div>
-        </article>
+      <div class="demo" data-demo aria-label="Three-step DIO walkthrough">
+        <div class="demo__visual">
+          <div class="demo__stage">
+            <div class="demo__scene demo__scene--select is-active" data-demo-scene="0"><p>The <mark>collisions</mark> were difficult to predict.</p></div>
+            <div class="demo__scene" data-demo-scene="1">
+              <div class="dio-popup" role="img" aria-label="DIO compact popup defining collisions as An instance of colliding">
+                <div class="dio-popup__header"><span class="dio-popup__icon">←</span><span class="dio-popup__brand">DIO</span><span class="dio-popup__icon">×</span></div>
+                <div class="dio-popup__content">
+                  <div class="dio-popup__word"><strong>collisions</strong><span class="dio-popup__icon">☆</span></div>
+                  <div class="dio-popup__phonetic"><span class="dio-popup__accent">US</span><span>/kəˈlɪʒənz/</span><svg class="dio-popup__speaker" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3l4-3.5v12l-4-3.5H4z M15 9a4 4 0 0 1 0 6 M17.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></div>
+                  <div class="dio-popup__tabs"><span class="is-current">Definition</span><span>Related</span></div>
+                  <div class="dio-popup__sense"><b>noun</b><p>An instance of colliding.</p></div>
+                </div>
+                <div class="dio-popup__footer"><span>Kokoro Heart · US English</span><span>Expand ↘</span></div>
+              </div>
+            </div>
+            <div class="demo__scene" data-demo-scene="2">
+              <div class="dio-popup" role="img" aria-label="DIO expanded popup with two meanings for collisions">
+                <div class="dio-popup__header"><span class="dio-popup__icon">←</span><span class="dio-popup__brand">DIO</span><span class="dio-popup__icon">×</span></div>
+                <div class="dio-popup__content">
+                  <div class="dio-popup__word"><strong>collisions</strong><span class="dio-popup__icon">☆</span></div>
+                  <div class="dio-popup__phonetic"><span class="dio-popup__part">noun</span><span class="dio-popup__accent">US</span><span>/kəˈlɪʒənz/</span><svg class="dio-popup__speaker" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3l4-3.5v12l-4-3.5H4z M15 9a4 4 0 0 1 0 6 M17.5 6.5a7.5 7.5 0 0 1 0 11"/></svg></div>
+                  <div class="dio-popup__details"><p><small>Noun</small>1. An instance of colliding.</p><p><small>Noun</small>1. An error caused by two source code elements (such as variables or functions) having the same name as each other.</p><p class="dio-popup__source">Source: Entry source · CC BY-SA 3.0</p></div>
+                </div>
+                <div class="dio-popup__footer"><span>Kokoro Heart · US English</span><span>Collapse ↖</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="demo__controls">
+            <button type="button" data-demo-play aria-label="Play walkthrough">Play</button>
+            <span class="demo__status" data-demo-status role="status">1 / 3</span>
+            <button type="button" data-demo-prev aria-label="Previous step">←</button>
+            <button type="button" data-demo-next aria-label="Next step">→</button>
+          </div>
+        </div>
+        <div class="demo__text">
+          <div class="demo__copy is-active" data-demo-copy="0"><span class="step">01 / SELECT</span><h3>Choose a word</h3><p>Highlight a word in the app you are reading.</p></div>
+          <div class="demo__copy" data-demo-copy="1"><span class="step">02 / LOOK UP</span><h3>Open DIO beside it</h3><p>Press <kbd>Ctrl + Alt + D</kbd> for a definition and pronunciation. Save the word with the star.</p></div>
+          <div class="demo__copy" data-demo-copy="2"><span class="step">03 / GO DEEPER</span><h3>Expand the entry</h3><p>Read more meanings and examples when available. DIO also includes an offline dictionary and acronym list.</p></div>
+        </div>
       </div>
     </div>
   </section>
@@ -247,31 +294,10 @@
           <div class="tour__panel" role="tabpanel" id="panel-steam" aria-labelledby="tab-steam" hidden><p>Read a store page in Steam and check a word without leaving it. Your previous clipboard comes back after every lookup.</p></div>
         </div>
         <div class="span-6 start-7">
-          <div class="frame shot" id="screen-chrome" style="--pos: 35%"><img class="frame__img" src="assets/shots/chrome.jpg" alt="DIO defining collisions in a Wikipedia article in Chrome" width="1426" height="893" loading="lazy"></div>
-          <div class="frame shot" id="screen-acrobat" style="--pos: 70%" hidden><img class="frame__img" src="assets/shots/acrobat.jpg" alt="DIO defining acknowledged in Pride and Prejudice in Adobe Acrobat" width="1426" height="893" loading="lazy"></div>
-          <div class="frame shot" id="screen-terminal" style="--pos: 0%" hidden><img class="frame__img" src="assets/shots/terminal.jpg" alt="DIO defining bisect in git help output in Windows Terminal" width="1426" height="853" loading="lazy"></div>
-          <div class="frame shot" id="screen-steam" style="--pos: 98%" hidden><img class="frame__img" src="assets/shots/steam.jpg" alt="DIO defining disaster on a game's store page in Steam" width="1440" height="710" loading="lazy"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="section" id="lookups" style="--hm: 2" aria-labelledby="lookups-h">
-    <div class="wrap">
-      <div class="grid grid--top fill">
-        <div class="span-5">
-          <div class="section-head">
-            <h2 id="lookups-h">One lookup shows the whole word</h2>
-          </div>
-          <ul class="rows">
-            <li><span class="rows__name">Plain-English meanings</span><p>From Simple English Wiktionary first. Expand adds the fuller list.</p></li>
-            <li><span class="rows__name">US and UK pronunciation</span><p>IPA labelled with its source, and a speaker to hear it.</p></li>
-            <li><span class="rows__name">16,000 acronyms</span><p>32,000 meanings for abbreviations like TTL and DPI.</p></li>
-            <li><span class="rows__name">Saved words</span><p>Star a word to keep it in your vocabulary list.</p></li>
-          </ul>
-        </div>
-        <div class="span-6 start-7">
-          <div class="panel popup-stage"><img src="assets/shots/popup-bisect.jpg" alt="DIO's popup for bisect: US pronunciation, a plain definition and synonyms" width="360" height="322" loading="lazy"></div>
+          <div class="app-shot" id="screen-chrome"><div class="frame shot" style="--pos: 35%"><img class="frame__img" src="assets/shots/chrome.jpg" alt="DIO defining collisions in a Wikipedia article in Chrome" width="1426" height="893" loading="lazy"></div><a class="shot-link" href="assets/shots/chrome.jpg" target="_blank" rel="noopener">View full screenshot</a></div>
+          <div class="app-shot" id="screen-acrobat" hidden><div class="frame shot" style="--pos: 70%"><img class="frame__img" src="assets/shots/acrobat.jpg" alt="DIO defining acknowledged in Pride and Prejudice in Adobe Acrobat" width="1426" height="893" loading="lazy"></div><a class="shot-link" href="assets/shots/acrobat.jpg" target="_blank" rel="noopener">View full screenshot</a></div>
+          <div class="app-shot" id="screen-terminal" hidden><div class="frame shot" style="--pos: 0%"><img class="frame__img" src="assets/shots/terminal.jpg" alt="DIO defining bisect in git help output in Windows Terminal" width="1426" height="853" loading="lazy"></div><a class="shot-link" href="assets/shots/terminal.jpg" target="_blank" rel="noopener">View full screenshot</a></div>
+          <div class="app-shot" id="screen-steam" hidden><div class="frame shot" style="--pos: 98%"><img class="frame__img" src="assets/shots/steam.jpg" alt="DIO defining disaster on a game's store page in Steam" width="1440" height="710" loading="lazy"></div><a class="shot-link" href="assets/shots/steam.jpg" target="_blank" rel="noopener">View full screenshot</a></div>
         </div>
       </div>
     </div>
@@ -302,13 +328,13 @@
     <div class="wrap">
       <div class="section-head">
         <h2 id="install-h">Install DIO in 3 steps</h2>
-        <p>No account. No admin rights. DIO starts in the system tray.</p>
+        <p>Run the Windows installer, then look up a word from the system tray app.</p>
       </div>
       <div class="grid install__steps">
         <article class="card span-4">
           <span class="step">1</span>
           <h3>Download the installer</h3>
-          <p>Get <kbd>DIO-setup.exe</kbd>, 31 MB, for 64-bit Windows 10 or 11.</p>
+          <p>Get <kbd>DIO-setup.exe</kbd> for Windows.</p>
         </article>
         <article class="card span-4">
           <span class="step">2</span>
@@ -323,7 +349,6 @@
       </div>
       <div class="install__get">
         <a class="btn btn--secondary" href="https://github.com/nathandalpatan/dio/releases">See all releases</a>
-        <span class="muted">Version 0.1.1 for 64-bit Windows 10 and 11</span>
       </div>
       <p class="install__note">DIO is not code-signed yet. If Windows SmartScreen warns you, choose More info, then Run anyway.</p>
     </div>
@@ -352,7 +377,7 @@
   <div class="wrap">
     <div class="closing__cta close--word">
       <div class="section-head--split">
-        <div><h2 id="close-h">Download DIO for Windows</h2><p class="t-lead">Version 0.1.1, 31 MB, for Windows 10 and 11.</p></div>
+        <div><h2 id="close-h">Download DIO for Windows</h2><p class="t-lead">Look up words beside what you are reading.</p></div>
         <a class="btn btn--primary" href="https://github.com/nathandalpatan/dio/releases/latest/download/DIO-setup.exe">Download for Windows<svg class="m-arrow" viewBox="0 0 12 12" aria-hidden="true"><path class="m-arrow__stem" d="M1 6h8"/><path class="m-arrow__head" d="M4.5 2.5 8 6l-3.5 3.5"/></svg></a>
       </div>
       <p class="close__word" aria-hidden="true">DIO</p>
@@ -363,7 +388,7 @@
           <a class="nav__logo" href="#top">DIO</a>
           <p class="footer__lede">A pop-up dictionary for Windows.</p>
         </div>
-        <div class="span-2 footer__col"><h4>Use</h4><ul><li><a href="#apps">Apps</a></li><li><a href="#lookups">Lookups</a></li><li><a href="#speech">Speech</a></li></ul></div>
+        <div class="span-2 footer__col"><h4>Use</h4><ul><li><a href="#workflow">How it works</a></li><li><a href="#apps">Apps</a></li><li><a href="#speech">Speech</a></li></ul></div>
         <div class="span-2 footer__col"><h4>Start</h4><ul><li><a href="#install">Install</a></li><li><a href="#questions">Questions</a></li></ul></div>
         <div class="span-2 footer__col"><h4>Project</h4><ul><li><a href="https://github.com/nathandalpatan/dio">Source code</a></li><li><a href="https://github.com/nathandalpatan/dio/releases">Releases</a></li></ul></div>
         <div class="span-2 footer__col"><h4>Credits</h4><ul><li><a href="https://github.com/nathandalpatan/dio#attribution">Data licences</a></li></ul></div>

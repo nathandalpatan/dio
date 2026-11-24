@@ -68,12 +68,19 @@ function nav() {
   const nav = document.querySelector<HTMLElement>('.nav');
   if (!nav) return;
   const toggle = nav.querySelector<HTMLElement>('.nav__toggle');
+  const toggleIcon = toggle?.querySelector<HTMLElement>('.nav__toggle-icon');
+  const toggleLabel = toggle?.querySelector<HTMLElement>('.nav__toggle-label');
   const bars = '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 5h14M2 13h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   const cross = '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
   const setOpen = (open: boolean) => {
     nav.classList.toggle('is-open', open);
     document.body.classList.toggle('nav-locked', open);
-    if (toggle) { toggle.setAttribute('aria-expanded', String(open)); toggle.innerHTML = open ? cross : bars; }
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      if (toggleIcon) toggleIcon.innerHTML = open ? cross : bars;
+      if (toggleLabel) toggleLabel.textContent = open ? 'Close' : 'Menu';
+    }
   };
   toggle?.addEventListener('click', () => setOpen(!nav.classList.contains('is-open')));
   nav.querySelectorAll('.nav__item').forEach(item => {
