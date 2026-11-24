@@ -54,7 +54,7 @@ function ContextDemo() {
 
 export function WebsiteB() { return <div className="site site-b" id="top"><SiteNav concept="Word in Context" quietMenu/><main>
   <section className="site-hero"><div className="site-wrap"><div className="site-hero__copy"><span className="eyebrow">Dictionary for Windows</span><h1>A dictionary beside your work</h1><p>Select a word in a Windows app and press Ctrl + Alt + D. DIO opens its meaning where you are, with 152,000 words offline.</p><a className="site-button" href={download}>Download for Windows</a></div><div className="site-hero__product context-scene"><div className="context-scene__document"><span>Reading in another app</span><p>The <mark>collisions</mark> were difficult to predict.</p></div><PopupPreview/></div></div></section>
-  <section className="site-section how-section" id="how"><div className="site-wrap"><div className="section-intro"><span className="eyebrow">The lookup</span><h2>One selection, one shortcut</h2><p>Select a word, press Ctrl + Alt + D, and read beside your source. This animated demonstration uses the names Neo and Remi.</p></div><ContextDemo/></div></section>
+  <section className="site-section how-section" id="how"><div className="site-wrap"><div className="section-intro"><span className="eyebrow">The lookup</span><h2>One selection, one shortcut</h2><p>Select a word, press Ctrl + Alt + D, and read beside your source.</p></div><ContextDemo/></div></section>
   <section className="site-section apps-section" id="apps"><div className="site-wrap split-section"><div className="section-intro"><h2>Made for reading across Windows</h2><p>Real captures show the popup in the apps where people read.</p></div><AppGallery/></div></section>
   <Speech/><Install/><Questions/>
   </main><SiteFooter/></div>; }

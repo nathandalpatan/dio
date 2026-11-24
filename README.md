@@ -107,7 +107,7 @@ gh release create vX.Y.Z src-tauri/target/release/bundle/nsis/DIO_X.Y.Z_x64-setu
 
 ### Website
 
-The download page lives in `site/` and is plain HTML with no build step. `.github/workflows/pages.yml` publishes it to GitHub Pages when `site/` changes on `main`.
+The download page lives in `site/` and renders the Context design from `prototypes/design/`. Run `pnpm site:build` to build it. `.github/workflows/pages.yml` publishes it to GitHub Pages when the site or design changes on `main`.
 
 ### Tests
 

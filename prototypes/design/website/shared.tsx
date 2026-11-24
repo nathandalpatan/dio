@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import chromeShot from '../../../site/assets/shots/chrome.jpg';
+import acrobatShot from '../../../site/assets/shots/acrobat.jpg';
+import terminalShot from '../../../site/assets/shots/terminal.jpg';
+import steamShot from '../../../site/assets/shots/steam.jpg';
 
 export const download = 'https://github.com/nathandalpatan/dio/releases/latest/download/DIO-setup.exe';
 export const releases = 'https://github.com/nathandalpatan/dio/releases';
-const shot = (name: string) => `../../site/assets/shots/${name}.jpg`;
+const shots: Record<string, string> = { chrome: chromeShot, acrobat: acrobatShot, terminal: terminalShot, steam: steamShot };
+const shot = (name: string) => shots[name];
 
 export function SiteNav({ concept, quietMenu = false }: { concept: string; quietMenu?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -35,7 +40,7 @@ export function PopupPreview({ expanded = false }: { expanded?: boolean }) {
   return <div className={`site-popup ${isExpanded ? 'is-expanded' : ''}`} aria-label="Interactive DIO popup preview">
     <div className="site-popup__bar"><span aria-hidden="true">←</span><strong>DIO</strong><span aria-hidden="true">×</span></div>
     <div className="site-popup__body"><div className="site-popup__word"><h3>collisions</h3><button aria-label={saved ? 'Remove saved word' : 'Save word'} aria-pressed={saved} onClick={() => setSaved(!saved)}>{saved ? '★' : '☆'}</button></div>
-      <div className="site-popup__ipa"><em>noun</em><span>US</span><span>/kəˈlɪʒənz/</span><button aria-label="Play pronunciation" onClick={() => { setSpeech('Playing with browser speech in this prototype.'); if ('speechSynthesis' in window) { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('collisions')); } }}>◖))</button></div>
+      <div className="site-popup__ipa"><em>noun</em><span>US</span><span>/kəˈlɪʒənz/</span><button aria-label="Play pronunciation" onClick={() => { setSpeech('Playing pronunciation with browser speech.'); if ('speechSynthesis' in window) { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('collisions')); } }}>◖))</button></div>
       <span className="sr-only" role="status">{speech}</span>
       {!isExpanded && <div className="site-popup__tabs" role="tablist" aria-label="Entry sections" onKeyDown={event => { if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return; event.preventDefault(); const names = ['Definition', 'Examples', 'Related']; const next = names[(names.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : 2)) % 3]; setTab(next); (event.currentTarget.querySelectorAll('button')[names.indexOf(next)] as HTMLButtonElement).focus(); }}>{['Definition', 'Examples', 'Related'].map(name => <button key={name} role="tab" aria-selected={tab === name} tabIndex={tab === name ? 0 : -1} onClick={() => setTab(name)}>{name}</button>)}</div>}
       <div className="site-popup__content">{isExpanded ? <><b>Noun</b><p>1. An instance of colliding.</p><b>Noun</b><p>1. An error caused by two source code elements having the same name.</p></> : tab === 'Definition' ? <><b>Noun</b><p>An instance of colliding.</p><small>Example</small><p>The collisions were difficult to predict.</p></> : tab === 'Examples' ? <p>The collisions were difficult to predict.</p> : <p>Related words and sources appear when available.</p>}</div>

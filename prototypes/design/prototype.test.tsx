@@ -35,7 +35,7 @@ describe('website concepts', () => {
     expect(screen.getAllByText('collisions').length).toBeGreaterThan(1);
     expect(screen.getByRole('img', { name: /Animated demonstration: Neo asks Remi/ })).toBeTruthy();
     expect(screen.getByText(/Something that is ephemeral is only temporary/)).toBeTruthy();
-    expect(screen.getByText(/This animated demonstration uses the names Neo and Remi/)).toBeTruthy();
+    expect(screen.getByText('Select a word, press Ctrl + Alt + D, and read beside your source.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Next step' })).toBeNull();
     const menu = screen.getByRole('button', { name: 'Menu' });
     fireEvent.click(menu);

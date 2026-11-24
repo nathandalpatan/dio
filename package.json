@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && tsc -p tsconfig.site.json --noEmit && vite build",
-    "site:build": "tsc -p tsconfig.site.json",
+    "site:build": "tsc -p tsconfig.site.json --noEmit && vite build site --base /dio/ --outDir ../dist/pages --emptyOutDir",
     "site:dev": "vite site",
     "test": "vitest run --environment jsdom",
     "tauri": "tauri"

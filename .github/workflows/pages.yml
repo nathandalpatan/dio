@@ -3,7 +3,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: [site/**, tsconfig.site.json, package.json, .github/workflows/pages.yml]
+    paths: [site/**, prototypes/design/**, tsconfig.site.json, package.json, .github/workflows/pages.yml]
   workflow_dispatch:
 
 permissions:
@@ -33,6 +33,6 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: dist/pages
       - id: deployment
         uses: actions/deploy-pages@v4
