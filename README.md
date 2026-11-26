@@ -13,7 +13,7 @@ Built with Rust and Tauri, DIO combines offline dictionary resources with online
 - **Local speech**: hear words and definitions read by Kokoro, with pause, resume, stop, voice, speed, and volume controls.
 - **Read aloud**: select text in any app and press **Ctrl + Alt + R** to hear it.
 - **Rich definitions**: definitions, examples, synonyms, and word origins when available.
-- **Saved vocabulary**: bookmark words for future reference.
+- **Saved vocabulary**: bookmark words and search your saved list for future reference.
 - **Customisable controls**: configure both shortcuts and optional middle-click activation.
 - **Local-first privacy**: offline fallback dictionary, local speech, clipboard preservation, and local data storage.
 
@@ -25,6 +25,7 @@ Built with Rust and Tauri, DIO combines offline dictionary resources with online
 4. Select **Expand** for additional definitions and pronunciation variants. Click the speaker beside the IPA to hear the word.
 
 Press **Escape** or click outside to dismiss the popup.
+Use the popup's **Back** and **Forward** buttons to revisit words opened from a lookup. Looking up a different word after going back replaces the forward history.
 
 DIO runs in the system tray. Right-click its icon to open Settings, stop reading, or quit the application.
 

@@ -68,10 +68,7 @@ fn begin(app: &AppHandle, word: String, history: bool) -> u64 {
         default_expanded
     };
     if history {
-        let next = popup.index + 1;
-        popup.history.truncate(next);
-        popup.history.push(word.clone());
-        popup.index = popup.history.len() - 1;
+        popup.record_word(word.clone());
     }
     let request_id = popup.state.request_id + 1;
     popup.state = PopupState {
@@ -80,6 +77,7 @@ fn begin(app: &AppHandle, word: String, history: bool) -> u64 {
         query: word,
         expanded,
         can_back: popup.index > 0,
+        can_forward: popup.can_forward(),
         ..Default::default()
     };
     drop(popup);
@@ -421,16 +419,21 @@ async fn lookup(app: AppHandle, word: String) -> Result<(), String> {
 }
 #[tauri::command]
 async fn back(app: AppHandle) -> Result<(), String> {
-    let word = {
-        let mut popup = shared(&app).popup.lock().unwrap();
-        if popup.index == 0 {
-            drop(popup);
-            return close_popup(app);
-        }
-        popup.index -= 1;
-        popup.history[popup.index].clone()
-    };
-    lookup_inner(app, word, false).await
+    let word = shared(&app).popup.lock().unwrap().back_word();
+    if let Some(word) = word {
+        lookup_inner(app, word, false).await
+    } else {
+        close_popup(app)
+    }
+}
+#[tauri::command]
+async fn forward(app: AppHandle) -> Result<(), String> {
+    let word = shared(&app).popup.lock().unwrap().forward_word();
+    if let Some(word) = word {
+        lookup_inner(app, word, false).await
+    } else {
+        Ok(())
+    }
 }
 #[tauri::command]
 fn close_popup(app: AppHandle) -> Result<(), String> {
@@ -847,6 +850,7 @@ fn main() {
             popup_state,
             lookup,
             back,
+            forward,
             close_popup,
             expand,
             save_word,

@@ -14,7 +14,7 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async (name: string, lis
 }) }));
 
 const settings = { shortcut: 'Ctrl+Alt+D', keyboardEnabled: true, middleClick: false, theme: 'system', size: 'standard', expanded: false, autoplay: false, startup: false, reducedMotion: true };
-const initial = { requestId: 0, status: 'idle', query: '', entries: [], message: '', stale: false, expanded: false, direction: 'se', canBack: false, saved: false };
+const initial = { requestId: 0, status: 'idle', query: '', entries: [], message: '', stale: false, expanded: false, direction: 'se', canBack: false, canForward: false, saved: false };
 const entry = { word: 'serendipity', phonetic: '', phonetics: [], meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: 'A happy discovery.', example: '', synonyms: [], antonyms: [] }], synonyms: ['luck'], antonyms: [] }], origin: '', sourceUrls: [] };
 const send = (payload: object) => act(() => api.listeners['popup-state']({ payload: { ...initial, ...payload } }));
 
@@ -103,6 +103,7 @@ describe('popup', () => {
     send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry] });
     expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Definition', 'Synonyms']);
     expect(screen.getByText('A happy discovery.')).toBeTruthy();
+    expect(screen.queryByText('Example')).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'Synonyms' }));
     expect(screen.getByText('Alternatives based on this meaning')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'luck' }));
@@ -110,10 +111,40 @@ describe('popup', () => {
     const withExample = { ...entry, origin: 'Coined by Horace Walpole.', meanings: [{ ...entry.meanings[0], definitions: [{ ...entry.meanings[0].definitions[0], example: 'A fortunate find.' }] }] };
     send({ requestId: 2, status: 'ready', query: 'serendipity', entries: [withExample] });
     expect(screen.getByRole('tab', { name: 'Definition' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByText('Example')).toBeTruthy();
+    expect(screen.getByText('A fortunate find.')).toBeTruthy();
+    expect(screen.queryByRole('tab', { name: 'Related' })).toBeNull();
+    fireEvent.keyDown(screen.getByRole('tablist', { name: 'Entry sections' }), { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Examples' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(screen.getByRole('tablist', { name: 'Entry sections' }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: 'Definition' }).getAttribute('aria-selected')).toBe('true');
     fireEvent.click(screen.getByRole('tab', { name: 'Examples' }));
     expect(screen.getByText('A fortunate find.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('tab', { name: 'Related' }));
+    fireEvent.click(screen.getByText('Expand ↘'));
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('expand', { expanded: true, reducedMotion: false }));
+    send({ requestId: 2, status: 'ready', query: 'serendipity', entries: [withExample], expanded: true });
     expect(screen.getByText('Origin')).toBeTruthy();
+  });
+
+  it('uses an example from the primary definition only', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    const meanings = [{ ...entry.meanings[0], definitions: [entry.meanings[0].definitions[0], { ...entry.meanings[0].definitions[0], definition: 'Another meaning.', example: 'A later example.' }] }];
+    send({ requestId: 1, status: 'ready', entries: [{ ...entry, meanings }] });
+    expect(screen.queryByText('Example')).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Examples' })).toBeTruthy();
+  });
+
+  it('offers forward navigation only when native history has a later word', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    send({ requestId: 1, status: 'ready', entries: [entry] });
+    expect(screen.queryByRole('button', { name: 'Forward to next word' })).toBeNull();
+    send({ requestId: 2, status: 'ready', entries: [entry], canBack: true, canForward: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Forward to next word' }));
+    expect(api.invoke).toHaveBeenCalledWith('forward', undefined);
+    send({ requestId: 3, status: 'ready', entries: [entry], canBack: true });
+    expect(screen.queryByRole('button', { name: 'Forward to next word' })).toBeNull();
   });
 
   it('uses the actual expansion direction and handles keyboard dismissal', async () => {
@@ -171,6 +202,20 @@ describe('popup', () => {
     act(() => api.listeners['tts-state']({ payload: { status: 'notInstalled', progress: 0, message: '', owner: '' } }));
     fireEvent.click(screen.getByRole('button', { name: 'Play pronunciation' }));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('pronunciation', { url: recorded.phonetics[0].audio }));
+  });
+
+  it('autoplays when speech becomes ready after the definition', async () => {
+    api.invoke.mockImplementation((command: string) => Promise.resolve(({ popup_state: initial, get_settings: { ...settings, autoplay: true } } as Record<string, unknown>)[command]));
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['tts-state']).toBeDefined());
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry] });
+    expect(api.invoke).not.toHaveBeenCalledWith('tts_speak', expect.anything());
+    act(() => api.listeners['tts-state']({ payload: { status: 'ready', progress: 0, message: '', owner: '' } }));
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('tts_speak', { text: 'serendipity', owner: 'word' }));
+    act(() => api.listeners['tts-state']({ payload: { status: 'playing', progress: 0, message: '', owner: 'word' } }));
+    expect(api.invoke.mock.calls.filter(([command]) => command === 'tts_speak')).toHaveLength(1);
+    send({ requestId: 2, status: 'ready', query: 'serendipity', entries: [entry] });
+    await waitFor(() => expect(api.invoke.mock.calls.filter(([command]) => command === 'tts_speak')).toHaveLength(2));
   });
 
   it('shows simple definitions compactly and adds the full dictionary when expanded', async () => {
@@ -239,7 +284,7 @@ describe('popup', () => {
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
     send({ requestId: 1, status: 'network', message: 'Dictionary service returned 502 Bad Gateway.' });
     expect(screen.queryByText('Expand')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to app' }));
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(api.invoke).toHaveBeenCalledWith('back', undefined);
     expect(api.invoke).toHaveBeenCalledWith('close_popup', undefined);
@@ -255,6 +300,36 @@ describe('settings', () => {
     return render(<AppView />);
   };
   afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('offers a retry when settings fail to load', async () => {
+    window.history.replaceState(null, '', '/?settings');
+    let attempts = 0;
+    api.invoke.mockImplementation((command: string) => {
+      if (command === 'get_settings') return ++attempts === 1 ? Promise.reject('Settings could not be loaded.') : Promise.resolve(speechSettings);
+      return Promise.resolve(({ saved_words: [], tts_voices: voices, tts_state: { status: 'ready', progress: 0, message: '', owner: '' } } as Record<string, unknown>)[command]);
+    });
+    render(<AppView />);
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Settings could not be loaded.');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry loading settings' }));
+    expect(await screen.findByRole('heading', { name: 'General' })).toBeTruthy();
+    expect(attempts).toBe(2);
+  });
+
+  it('keeps a large saved-word collection searchable and initially bounded', async () => {
+    window.history.replaceState(null, '', '/?settings');
+    const saved = Array.from({ length: 1284 }, (_, index) => `vocabulary ${index + 1}`);
+    api.invoke.mockImplementation((command: string) => Promise.resolve(({ get_settings: speechSettings, saved_words: saved } as Record<string, unknown>)[command]));
+    const { container } = render(<AppView />);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Saved words' }));
+    expect(container.querySelectorAll('.saved-list button')).toHaveLength(60);
+    fireEvent.click(screen.getByRole('button', { name: 'Show more saved words' }));
+    expect(container.querySelectorAll('.saved-list button')).toHaveLength(120);
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search saved words' }), { target: { value: 'vocabulary 1284' } });
+    expect(container.querySelectorAll('.saved-list button')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'vocabulary 1284' })).toBeTruthy();
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search saved words' }), { target: { value: 'unlisted word' } });
+    expect(screen.getByText('No saved words match your search.')).toBeTruthy();
+  });
 
   it('installs the voice and saves speech preferences', async () => {
     open({});

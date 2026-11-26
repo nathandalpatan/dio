@@ -14,6 +14,32 @@ pub struct Popup {
     pub anchor: Option<Rect>,
 }
 impl Popup {
+    pub fn record_word(&mut self, word: String) {
+        self.history.truncate(self.index + 1);
+        self.history.push(word);
+        self.index = self.history.len() - 1;
+    }
+
+    pub fn back_word(&mut self) -> Option<String> {
+        if self.index == 0 {
+            return None;
+        }
+        self.index -= 1;
+        Some(self.history[self.index].clone())
+    }
+
+    pub fn can_forward(&self) -> bool {
+        self.index + 1 < self.history.len()
+    }
+
+    pub fn forward_word(&mut self) -> Option<String> {
+        if !self.can_forward() {
+            return None;
+        }
+        self.index += 1;
+        Some(self.history[self.index].clone())
+    }
+
     pub fn update_if_current(
         &mut self,
         request_id: u64,
@@ -313,6 +339,22 @@ pub fn show_without_focus(app: &AppHandle) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn forward_history_is_replaced_after_a_new_lookup() {
+        let mut popup = Popup::default();
+        popup.record_word("truth".into());
+        popup.record_word("fact".into());
+        assert_eq!(popup.back_word().as_deref(), Some("truth"));
+        assert!(popup.can_forward());
+        assert_eq!(popup.forward_word().as_deref(), Some("fact"));
+        assert!(!popup.can_forward());
+        assert_eq!(popup.back_word().as_deref(), Some("truth"));
+        popup.record_word("reality".into());
+        assert_eq!(popup.history, ["truth".to_string(), "reality".to_string()]);
+        assert_eq!(popup.forward_word(), None);
+    }
+
     #[test]
     fn positions_on_negative_monitor_and_flips() {
         let work = Bounds {
