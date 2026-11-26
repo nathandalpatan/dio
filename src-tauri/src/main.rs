@@ -99,7 +99,7 @@ fn fail(app: &AppHandle, id: u64, status: &str, message: String) {
     let anchor = popup.anchor;
     drop(popup);
     let settings = shared(app).settings.lock().unwrap().clone();
-    if let Ok(direction) = popup::set_bounds(app, anchor, false, &settings.size) {
+    if let Ok(direction) = popup::set_bounds(app, anchor, false, &settings) {
         shared(app).popup.lock().unwrap().state.direction = direction;
     }
     publish(app);
@@ -414,7 +414,7 @@ async fn read_aloud(app: AppHandle) {
     });
     let anchor = popup.anchor;
     drop(popup);
-    if let Ok(direction) = popup::set_bounds(&app, anchor, false, &settings.size) {
+    if let Ok(direction) = popup::set_bounds(&app, anchor, false, &settings) {
         shared(&app).popup.lock().unwrap().state.direction = direction;
     }
     publish(&app);
@@ -440,7 +440,7 @@ async fn lookup_inner(app: AppHandle, word: String, history: bool) -> Result<(),
         let popup = shared(&app).popup.lock().unwrap();
         (popup.anchor, popup.state.expanded)
     };
-    let direction = popup::set_bounds(&app, anchor, expanded, &settings.size)?;
+    let direction = popup::set_bounds(&app, anchor, expanded, &settings)?;
     shared(&app).popup.lock().unwrap().state.direction = direction;
     publish(&app);
     popup::show(&app)?;
@@ -530,7 +530,7 @@ async fn expand(app: AppHandle, expanded: bool, reduced_motion: bool) -> Result<
     let completed = popup::animate_bounds(
         &app,
         expanded,
-        &settings.size,
+        &settings,
         settings.reduced_motion || reduced_motion,
         &direction,
     )
@@ -543,6 +543,25 @@ async fn expand(app: AppHandle, expanded: bool, reduced_motion: bool) -> Result<
         }
     }
     Ok(())
+}
+/// Remembers the size the user just dragged the popup to, for the compact or expanded popup.
+#[tauri::command]
+fn remember_popup_size(app: AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("popup")
+        .ok_or("Popup window is unavailable.")?;
+    let size = window
+        .outer_size()
+        .map_err(|e| e.to_string())?
+        .to_logical::<f64>(window.scale_factor().map_err(|e| e.to_string())?);
+    let dragged = Some((size.width.round(), size.height.round()));
+    let mut next = shared(&app).settings.lock().unwrap().clone();
+    if shared(&app).popup.lock().unwrap().state.expanded {
+        next.expanded_custom = dragged;
+    } else {
+        next.popup_custom = dragged;
+    }
+    settings::update(&app, next)
 }
 #[tauri::command]
 fn save_word(app: AppHandle, save: bool) -> Result<(), String> {
@@ -577,7 +596,7 @@ fn open_saved(app: AppHandle, word: String) -> Result<(), String> {
     let id = begin(&app, word.clone(), true);
     let settings = shared(&app).settings.lock().unwrap().clone();
     let expanded = shared(&app).popup.lock().unwrap().state.expanded;
-    let direction = popup::set_bounds(&app, None, expanded, &settings.size)?;
+    let direction = popup::set_bounds(&app, None, expanded, &settings)?;
     let mut popup = shared(&app).popup.lock().unwrap();
     if popup.state.request_id == id {
         popup.state.status = "ready".into();
@@ -935,6 +954,7 @@ fn main() {
             shortcut_error,
             hook_error,
             update_settings,
+            remember_popup_size,
             pronunciation,
             show_settings,
             tts_state,

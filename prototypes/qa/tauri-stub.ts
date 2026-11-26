@@ -2,7 +2,7 @@ type Listener<T> = (event: { payload: T }) => void;
 const listeners = new Map<string, Set<Listener<unknown>>>();
 const params = new URLSearchParams(location.search);
 const mode = params.get('data') || 'demo';
-const expanded = params.get('size') === 'expanded';
+const expanded = ['expanded', 'wide', 'huge'].includes(params.get('size') || '');
 const longWord = 'pneumonoultramicroscopicsilicovolcanoconiosis';
 const definition = (text: string, example = '') => ({ definition: text, example, synonyms: [] as string[], antonyms: [] as string[] });
 const regular = {
@@ -31,7 +31,7 @@ let state = {
   stale: false, expanded, direction: mode === 'worst' ? 'nw' : 'se', canBack: false, canForward: false, saved: false,
 };
 let settings = {
-  shortcut: 'Ctrl+Alt+D', keyboardEnabled: true, middleClick: false, theme: 'light', size: 'standard', expanded: false, autoplay: false,
+  shortcut: 'Ctrl+Alt+D', keyboardEnabled: true, middleClick: false, theme: 'light', size: 'standard', textSize: params.get('text') || 'compact', expanded: false, autoplay: false,
   startup: false, reducedMotion: false, accent: 'us', ttsEnabled: true, voice: 'af_heart', speed: 1, volume: 1,
   readerEnabled: true, readerShortcut: 'Ctrl+Alt+R', readerMaxChars: 2000,
 };

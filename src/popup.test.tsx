@@ -237,6 +237,14 @@ describe('popup', () => {
     expect(screen.getByText('To run.')).toBeTruthy();
   });
 
+  it('sizes text by the Text size setting, not by the popup', async () => {
+    const { container } = render(<PopupView />);
+    await waitFor(() => expect(container.querySelector('.popup')?.className).toContain('text-compact'));
+    act(() => api.listeners['settings-changed']({ payload: { ...settings, textSize: 'large' } }));
+    expect(container.querySelector('.popup')?.className).toContain('text-large');
+    expect(container.querySelector('.popup')?.className).not.toContain('text-compact');
+  });
+
   it('keeps the section tabs when expanded and shows each section in full', async () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
@@ -371,6 +379,15 @@ describe('settings', () => {
     expect(screen.getByRole('button', { name: 'vocabulary 1284' })).toBeTruthy();
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search saved words' }), { target: { value: 'unlisted word' } });
     expect(screen.getByText('No saved words match your search.')).toBeTruthy();
+  });
+
+  it('changes the text size from Appearance with a live preview', async () => {
+    const { container } = open({});
+    fireEvent.click(await screen.findByRole('tab', { name: 'Appearance' }));
+    expect(container.querySelector('.popup-sample')?.className).toContain('text-compact');
+    fireEvent.change(screen.getByRole('combobox', { name: /Text size/ }), { target: { value: 'large' } });
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('update_settings', { next: expect.objectContaining({ textSize: 'large' }) }));
+    expect(container.querySelector('.popup-sample')?.className).toContain('text-large');
   });
 
   it('installs the voice and saves speech preferences', async () => {

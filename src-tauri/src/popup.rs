@@ -1,4 +1,4 @@
-use crate::model::{PopupState, Rect};
+use crate::model::{PopupState, Rect, Settings, MIN_POPUP};
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager};
 use windows::Win32::{
@@ -133,15 +133,43 @@ fn resize_from_corner(start: Bounds, work: Bounds, size: (u32, u32), direction: 
 
 const EXPANDED: (f64, f64) = (514.0, 378.0);
 
-fn logical_size(expanded: bool, size: &str) -> (f64, f64) {
-    if expanded {
-        return EXPANDED;
-    }
-    match size {
-        "small" => (328.0, 293.0),
-        "large" => (429.0, 372.0),
-        _ => (378.0, 332.0),
-    }
+/// Work-area height, in logical pixels, at which the popup sizes are used as written: a 1080p
+/// screen at 100% scaling once the taskbar is taken off.
+const REFERENCE_HEIGHT: f64 = 1040.0;
+
+/// The popup size in logical pixels for a work area of `work` logical pixels. Without a size the
+/// user dragged to, the chosen size gets a little more room on tall screens and a little less on
+/// short ones. Text size never follows it.
+fn logical_size(expanded: bool, settings: &Settings, work: (f64, f64)) -> (f64, f64) {
+    let factor = (work.1 / REFERENCE_HEIGHT).clamp(0.9, 1.15);
+    let compact = settings.popup_custom.unwrap_or_else(|| {
+        let base = match settings.size.as_str() {
+            "small" => (328.0, 293.0),
+            "large" => (429.0, 372.0),
+            _ => (378.0, 332.0),
+        };
+        (base.0 * factor, base.1 * factor)
+    });
+    let (width, height) = if expanded {
+        // Expanding never shrinks a popup the user made larger than the usual expanded size.
+        settings.expanded_custom.unwrap_or((
+            (EXPANDED.0 * factor).max(compact.0),
+            (EXPANDED.1 * factor).max(compact.1),
+        ))
+    } else {
+        compact
+    };
+    let fit = |value: f64, minimum: f64, available: f64| {
+        value.min(available * 0.9).max(minimum.min(available))
+    };
+    (
+        fit(width, MIN_POPUP.0, work.0),
+        fit(height, MIN_POPUP.1, work.1),
+    )
+}
+
+fn logical_work(work: Bounds, scale: f64) -> (f64, f64) {
+    (work.width as f64 / scale, work.height as f64 / scale)
 }
 
 pub fn emit(app: &AppHandle, state: &PopupState) {
@@ -152,7 +180,7 @@ fn target(
     app: &AppHandle,
     anchor: Option<Rect>,
     expanded: bool,
-    size: &str,
+    settings: &Settings,
 ) -> Result<(tauri::WebviewWindow, Bounds, String), String> {
     let window = app
         .get_webview_window("popup")
@@ -170,7 +198,6 @@ fn target(
         .or(window.current_monitor().map_err(|e| e.to_string())?)
         .ok_or("No display is available.")?;
     let scale = monitor.scale_factor();
-    let logical = logical_size(expanded, size);
     let area = monitor.work_area();
     let work = Bounds {
         x: area.position.x,
@@ -178,7 +205,9 @@ fn target(
         width: area.size.width,
         height: area.size.height,
     };
-    let (_, direction) = place(anchor, work, physical_size(EXPANDED, scale));
+    let logical = logical_size(expanded, settings, logical_work(work, scale));
+    let largest = logical_size(true, settings, logical_work(work, scale));
+    let (_, direction) = place(anchor, work, physical_size(largest, scale));
     let bounds = place_in_direction(anchor, work, physical_size(logical, scale), &direction);
     Ok((window, bounds, direction))
 }
@@ -203,12 +232,12 @@ pub fn set_bounds(
     app: &AppHandle,
     anchor: Option<Rect>,
     expanded: bool,
-    size: &str,
+    settings: &Settings,
 ) -> Result<String, String> {
     app.state::<crate::AppState>()
         .motion
         .fetch_add(1, Ordering::AcqRel);
-    let (window, bounds, direction) = target(app, anchor, expanded, size)?;
+    let (window, bounds, direction) = target(app, anchor, expanded, settings)?;
     apply(&window, bounds)?;
     Ok(direction)
 }
@@ -216,7 +245,7 @@ pub fn set_bounds(
 pub async fn animate_bounds(
     app: &AppHandle,
     expanded: bool,
-    size: &str,
+    settings: &Settings,
     reduced_motion: bool,
     direction: &str,
 ) -> Result<bool, String> {
@@ -236,7 +265,11 @@ pub async fn animate_bounds(
         width: area.size.width,
         height: area.size.height,
     };
-    let logical = logical_size(expanded, size);
+    let logical = logical_size(
+        expanded,
+        settings,
+        logical_work(work, monitor.scale_factor()),
+    );
     if reduced_motion {
         let position = window.outer_position().map_err(|e| e.to_string())?;
         let dimensions = window.outer_size().map_err(|e| e.to_string())?;
@@ -470,6 +503,36 @@ mod tests {
         }
     }
 
+    #[test]
+    fn popup_size_follows_the_screen() {
+        let standard = Settings::default();
+        assert_eq!(
+            logical_size(false, &standard, (1920.0, 1040.0)),
+            (378.0, 332.0)
+        );
+        let roomy = logical_size(false, &standard, (2560.0, 1392.0));
+        assert_eq!(roomy, (378.0 * 1.15, 332.0 * 1.15));
+        let cramped = logical_size(false, &standard, (1366.0, 728.0));
+        assert_eq!(cramped, (378.0 * 0.9, 332.0 * 0.9));
+        let tiny = logical_size(true, &standard, (400.0, 300.0));
+        assert_eq!(tiny, (360.0, 270.0));
+    }
+    #[test]
+    fn remembered_sizes_win_and_expanding_never_shrinks() {
+        let dragged = Settings {
+            popup_custom: Some((700.0, 600.0)),
+            ..Settings::default()
+        };
+        let work = (1920.0, 1040.0);
+        assert_eq!(logical_size(false, &dragged, work), (700.0, 600.0));
+        assert_eq!(logical_size(true, &dragged, work), (700.0, 600.0));
+        let both = Settings {
+            expanded_custom: Some((900.0, 700.0)),
+            ..dragged
+        };
+        assert_eq!(logical_size(true, &both, work), (900.0, 700.0));
+        assert_eq!(logical_size(false, &both, (800.0, 500.0)).1, 450.0);
+    }
     #[test]
     fn compact_placement_uses_the_expanded_direction() {
         let work = Bounds {

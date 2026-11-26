@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
@@ -11,6 +12,8 @@ import '@fontsource/source-serif-4/600.css';
 import '@fontsource/source-serif-4/700.css';
 import './style.css';
 
+type ResizeDirection = Parameters<ReturnType<typeof getCurrentWindow>['startResizeDragging']>[0];
+
 type License = { name: string; url: string };
 type Phonetic = { text: string; audio: string; sourceUrl: string; license?: License };
 type Definition = { definition: string; example: string; synonyms: string[]; antonyms: string[] };
@@ -18,7 +21,7 @@ type Meaning = { partOfSpeech: string; definitions: Definition[]; synonyms: stri
 type Entry = { word: string; phonetic: string; phonetics: Phonetic[]; meanings: Meaning[]; origin: string; sourceUrls: string[]; license?: License };
 type Pronunciation = { ipa: string; dialect: string; source: string };
 type PopupState = { requestId: number; status: string; query: string; entries: Entry[]; message: string; stale: boolean; expanded: boolean; direction: string; canBack: boolean; canForward: boolean; saved: boolean; pronunciations?: Pronunciation[]; reading?: string };
-type Settings = { shortcut: string; keyboardEnabled: boolean; middleClick: boolean; theme: string; size: string; expanded: boolean; autoplay: boolean; startup: boolean; reducedMotion: boolean; accent?: string; ttsEnabled?: boolean; voice?: string; speed?: number; volume?: number; readerEnabled?: boolean; readerShortcut?: string; readerMaxChars?: number };
+type Settings = { shortcut: string; keyboardEnabled: boolean; middleClick: boolean; theme: string; size: string; textSize?: string; expanded: boolean; autoplay: boolean; startup: boolean; reducedMotion: boolean; accent?: string; ttsEnabled?: boolean; voice?: string; speed?: number; volume?: number; readerEnabled?: boolean; readerShortcut?: string; readerMaxChars?: number; popupCustom?: [number, number] | null; expandedCustom?: [number, number] | null };
 type TtsState = { status: string; progress: number; message: string; owner: string };
 type Voice = { id: string; name: string; accent: string };
 type SavedWord = { word: string; added: number };
@@ -119,6 +122,7 @@ function wordAt(x: number, y: number): Range | null {
   const box = range.getBoundingClientRect();
   return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom ? range : null;
 }
+const resizeEdges: ResizeDirection[] = ['North', 'South', 'East', 'West', 'NorthEast', 'NorthWest', 'SouthEast', 'SouthWest'];
 const highlights = typeof CSS !== 'undefined' && 'highlights' in CSS ? CSS.highlights : undefined;
 
 export function PopupView() {
@@ -188,6 +192,15 @@ export function PopupView() {
     clearHover(event);
     void more(clicked);
   };
+  /** Lets the user drag any edge to resize, then remembers that size for later lookups. */
+  const resize = async (event: React.PointerEvent, direction: ResizeDirection) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    try {
+      await getCurrentWindow().startResizeDragging(direction);
+      await call('remember_popup_size');
+    } catch (e) { setError(asError(e)); }
+  };
   const speak = async (text: string, owner: 'word' | 'popup') => { setError(''); try { await call('tts_speak', { text, owner }); } catch (e) { setError(asError(e)); } };
   const pronounce = () => canSpeak ? speak(word, 'word') : play();
   useEffect(() => {
@@ -234,7 +247,7 @@ export function PopupView() {
       {hasSources && <footer>{sources}</footer>}
     </div> : primaryDefinition;
 
-  return <main className={`popup ${state.expanded ? 'expanded' : ''} theme-${settings?.theme || 'system'} ${settings?.reducedMotion ? 'reduced-motion' : ''}`}>
+  return <main className={`popup ${state.expanded ? 'expanded' : ''} text-${settings?.textSize || 'compact'} theme-${settings?.theme || 'system'} ${settings?.reducedMotion ? 'reduced-motion' : ''}`}>
     <header className="popup-header" data-tauri-drag-region>
       <div className="header-nav"><button className="icon-button" aria-label={state.canBack ? 'Back to previous word' : 'Back to app'} onClick={() => control('back')}><Icon name="back"/></button>{state.canForward && state.status !== 'reading' && <button className="icon-button" aria-label="Forward to next word" onClick={() => control('forward')}><Icon name="forward"/></button>}</div>
       <span className="brand" data-tauri-drag-region>DIO</span>
@@ -272,6 +285,7 @@ export function PopupView() {
         {state.status === 'ready' && <button className="expand-button" onClick={() => void toggle()}>{state.expanded ? 'Collapse' : 'Expand'} {state.expanded ? opposite[state.direction] : arrows[state.direction]}</button>}
       </span>
     </footer>
+    {resizeEdges.map(edge => <span key={edge} className={`resize-edge resize-${edge.toLowerCase()}`} aria-hidden="true" onPointerDown={event => void resize(event, edge)}/>)}
   </main>;
 }
 
@@ -376,7 +390,7 @@ function SettingsView() {
       <Switch label="Show expanded definitions by default" checked={settings.expanded} onChange={expanded => void commit({ expanded })}/>
       <Switch label="Reduce motion" checked={settings.reducedMotion} onChange={reducedMotion => void commit({ reducedMotion })}/>
       <hr/>
-      <Row label="Popup size"><select value={settings.size} onChange={e => void commit({ size: e.target.value })}><option value="small">Small</option><option value="standard">Standard</option><option value="large">Large</option></select></Row>
+      <Row label="Popup size" hint={settings.popupCustom || settings.expandedCustom ? 'Using the size you dragged the popup to. Choose a size to go back to automatic sizing.' : 'Adjusts to your screen. Drag an edge of the popup to set your own size.'}><select value={settings.popupCustom || settings.expandedCustom ? '' : settings.size} onChange={e => void commit({ size: e.target.value, popupCustom: null, expandedCustom: null })}>{(settings.popupCustom || settings.expandedCustom) && <option value="" disabled>Custom</option>}<option value="small">Small</option><option value="standard">Standard</option><option value="large">Large</option></select></Row>
     </>,
     pronunciation: <>
       <Row label="Accent" hint="Shows IPA in this accent first and pronounces words with a matching voice. DIO only labels an accent when its source does."><select value={settings.accent || 'us'} onChange={e => void commit({ accent: e.target.value })}><option value="us">US English</option><option value="uk">UK English</option></select></Row>
@@ -403,6 +417,13 @@ function SettingsView() {
     </>,
     appearance: <>
       <Row label="Theme"><select value={settings.theme} onChange={e => void commit({ theme: e.target.value })}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></Row>
+      <Row label="Text size" hint="Text in the popup. Resizing the popup gives more room without changing this."><select value={settings.textSize || 'compact'} onChange={e => void commit({ textSize: e.target.value })}><option value="compact">Compact</option><option value="standard">Standard</option><option value="large">Large</option></select></Row>
+      <div className={`popup-sample text-${settings.textSize || 'compact'}`} aria-hidden="true">
+        <div className="word-row"><span className="headword">serendipity</span></div>
+        <div className="phonetic-row"><span className="part">noun</span><span className="ipa">/ˌsɛɹ.ənˈdɪp.ɪ.ti/</span></div>
+        <div className="tabs"><span className="selected">Definition</span><span>Examples</span><span>Synonyms</span></div>
+        <div className="tab-panel"><span className="part">noun</span><p className="definition-text">The fact of finding interesting or valuable things by chance, when you were not looking for them.</p></div>
+      </div>
     </>,
     saved: words.length ? <>
       <input className="field saved-search" type="search" aria-label="Search saved words" placeholder="Search saved words" value={savedFilter} onChange={e => { setSavedFilter(e.target.value); setSavedShown(60); }}/>

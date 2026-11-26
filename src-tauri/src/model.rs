@@ -8,6 +8,8 @@ pub struct Settings {
     pub middle_click: bool,
     pub theme: String,
     pub size: String,
+    /// compact, standard or large. Independent of the popup's size.
+    pub text_size: String,
     pub expanded: bool,
     pub autoplay: bool,
     pub startup: bool,
@@ -20,7 +22,13 @@ pub struct Settings {
     pub reader_enabled: bool,
     pub reader_shortcut: String,
     pub reader_max_chars: usize,
+    /// Size the user dragged the compact popup to, in logical pixels. `None` sizes it automatically.
+    pub popup_custom: Option<(f64, f64)>,
+    /// Size the user dragged the expanded popup to, in logical pixels.
+    pub expanded_custom: Option<(f64, f64)>,
 }
+/// Smallest popup the user can resize to, in logical pixels. Matches the popup window's minimum size.
+pub const MIN_POPUP: (f64, f64) = (300.0, 220.0);
 impl Default for Settings {
     fn default() -> Self {
         Self {
@@ -29,6 +37,7 @@ impl Default for Settings {
             middle_click: false,
             theme: "system".into(),
             size: "standard".into(),
+            text_size: "compact".into(),
             expanded: false,
             autoplay: false,
             startup: false,
@@ -41,6 +50,8 @@ impl Default for Settings {
             reader_enabled: true,
             reader_shortcut: "Ctrl+Alt+R".into(),
             reader_max_chars: 2000,
+            popup_custom: None,
+            expanded_custom: None,
         }
     }
 }
@@ -48,6 +59,7 @@ impl Settings {
     pub fn validate(&self) -> Result<(), String> {
         if !["system", "light", "dark"].contains(&self.theme.as_str())
             || !["small", "standard", "large"].contains(&self.size.as_str())
+            || !["compact", "standard", "large"].contains(&self.text_size.as_str())
         {
             return Err("Invalid appearance preference.".into());
         }
@@ -66,6 +78,12 @@ impl Settings {
             || !(100..=10_000).contains(&self.reader_max_chars)
         {
             return Err("Invalid speech preference.".into());
+        }
+        let valid = |(width, height): (f64, f64)| {
+            (MIN_POPUP.0..=4000.0).contains(&width) && (MIN_POPUP.1..=4000.0).contains(&height)
+        };
+        if !self.popup_custom.is_none_or(valid) || !self.expanded_custom.is_none_or(valid) {
+            return Err("Invalid popup size.".into());
         }
         Ok(())
     }
@@ -346,6 +364,42 @@ mod tests {
             },
         ] {
             assert!(invalid.validate().is_err());
+        }
+    }
+    #[test]
+    fn text_size_is_validated_and_defaults_to_compact() {
+        let old: Settings = serde_json::from_str(r#"{"theme":"dark","size":"standard"}"#).unwrap();
+        assert_eq!(old.text_size, "compact");
+        for size in ["compact", "standard", "large"] {
+            assert!(Settings {
+                text_size: size.into(),
+                ..Settings::default()
+            }
+            .validate()
+            .is_ok());
+        }
+        assert!(Settings {
+            text_size: "huge".into(),
+            ..Settings::default()
+        }
+        .validate()
+        .is_err());
+    }
+    #[test]
+    fn remembered_popup_sizes_are_validated() {
+        let valid = Settings {
+            popup_custom: Some((420.0, 360.0)),
+            expanded_custom: Some((640.0, 480.0)),
+            ..Settings::default()
+        };
+        assert!(valid.validate().is_ok());
+        for size in [(100.0, 360.0), (420.0, f64::NAN), (5000.0, 400.0)] {
+            assert!(Settings {
+                popup_custom: Some(size),
+                ..valid.clone()
+            }
+            .validate()
+            .is_err());
         }
     }
     #[test]
