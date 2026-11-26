@@ -74,11 +74,14 @@ h1, h2, p { margin-top: 0; }
 .word-columns { display: flex; flex-wrap: wrap; gap: 7px 12px; margin: 0; padding: 0; list-style: none; }
 .word-columns .link { color: var(--accent); font-size: 13px; text-decoration: underline; }
 .link { border: 0; background: none; padding: 0; text-align: left; text-underline-offset: 3px; }
+.tab-panel.over-word { cursor: pointer; }
+::highlight(dio-word) { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.antonyms { margin-top: 14px; }
 .link:hover { color: var(--accent); text-decoration: underline; }
 
 .muted { color: var(--muted); }
 
-.details { padding-top: 13px; }
+.details { padding-top: 0; }
 .details section { padding: 10px 0 4px; }
 .details section:first-child { padding-top: 0; }
 .details section + section { border-top: 1px solid var(--rule); }

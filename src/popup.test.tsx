@@ -64,10 +64,11 @@ describe('popup', () => {
     send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [long], expanded: true });
     expect(screen.getByText('Sense 5.')).toBeTruthy();
     expect(screen.queryByText('Sense 6.')).toBeNull();
-    expect(screen.queryByText(/a11y/)).toBeNull();
-    expect(screen.getByText('usability')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Show all 7 meanings' }));
     expect(screen.getByText('Sense 7.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: 'Synonyms' }));
+    expect(screen.queryByText(/a11y/)).toBeNull();
+    expect(screen.getByText('usability')).toBeTruthy();
   });
 
   it('hides absent fields and follows related words', async () => {
@@ -76,6 +77,7 @@ describe('popup', () => {
     send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry], expanded: true });
     expect(screen.getByText('serendipity')).toBeTruthy();
     expect(screen.queryByText('Origin')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'Synonyms' }));
     expect(screen.queryByText('Antonyms')).toBeNull();
     fireEvent.click(screen.getByText('luck'));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('lookup', { word: 'luck' }));
@@ -123,6 +125,8 @@ describe('popup', () => {
     fireEvent.click(screen.getByText('Expand ↘'));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('expand', { expanded: true, reducedMotion: false }));
     send({ requestId: 2, status: 'ready', query: 'serendipity', entries: [withExample], expanded: true });
+    expect(screen.getByRole('tab', { name: 'Examples' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Definition' }));
     expect(screen.getByText('Origin')).toBeTruthy();
   });
 
@@ -231,6 +235,33 @@ describe('popup', () => {
     expect(screen.getByText('If you run, you go quickly.')).toBeTruthy();
     expect(screen.getByText('More meanings')).toBeTruthy();
     expect(screen.getByText('To run.')).toBeTruthy();
+  });
+
+  it('keeps the section tabs when expanded and shows each section in full', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    const opposed = { ...entry, meanings: [{ ...entry.meanings[0], antonyms: ['misfortune'] }] };
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [opposed], expanded: true });
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Definition', 'Synonyms']);
+    expect(screen.getByText('A happy discovery.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('tab', { name: 'Synonyms' }));
+    expect(screen.getByRole('button', { name: 'luck' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'misfortune' })).toBeTruthy();
+  });
+
+  it('looks up a word clicked in the definition', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry] });
+    const text = screen.getByText('A happy discovery.').firstChild!;
+    const at = (offset: number) => Object.assign(document, { caretRangeFromPoint: () => { const range = document.createRange(); range.setStart(text, offset); return range; } });
+    Range.prototype.getBoundingClientRect = () => ({ left: 0, right: 100, top: 0, bottom: 20 }) as DOMRect;
+    at(4);
+    fireEvent.click(screen.getByText('A happy discovery.'), { clientX: 10, clientY: 10 });
+    await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('lookup', { word: 'happy' }));
+    at(9);
+    fireEvent.click(screen.getByText('A happy discovery.'), { clientX: 200, clientY: 10 });
+    expect(api.invoke).not.toHaveBeenCalledWith('lookup', { word: 'discovery' });
   });
 
   it('shows speech status and playback controls in the footer', async () => {

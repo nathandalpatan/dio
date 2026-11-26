@@ -90,6 +90,37 @@ function tabKeys<T extends string>(ids: T[], current: T, select: (id: T) => void
   };
 }
 
+const wordChar = /[\p{L}\p{M}'’-]/u;
+const edgeMark = /['’-]/;
+/** The word under a point in text marked `.lookup-text`, found from the caret so the text stays plain. */
+function wordAt(x: number, y: number): Range | null {
+  const doc = document as Document & { caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null };
+  let node: Node | undefined;
+  let offset = 0;
+  const position = doc.caretPositionFromPoint?.(x, y);
+  if (position) ({ offsetNode: node, offset } = position);
+  else {
+    const caret = doc.caretRangeFromPoint?.(x, y);
+    if (caret) { node = caret.startContainer; offset = caret.startOffset; }
+  }
+  if (!node || node.nodeType !== Node.TEXT_NODE || !node.parentElement?.closest('.lookup-text')) return null;
+  const text = node.textContent || '';
+  let start = offset;
+  let end = offset;
+  while (start > 0 && wordChar.test(text[start - 1])) start--;
+  while (end < text.length && wordChar.test(text[end])) end++;
+  while (start < end && edgeMark.test(text[start])) start++;
+  while (end > start && edgeMark.test(text[end - 1])) end--;
+  if (!/\p{L}/u.test(text.slice(start, end))) return null;
+  const range = document.createRange();
+  range.setStart(node, start);
+  range.setEnd(node, end);
+  // The caret snaps to the nearest character even past the end of a line, so the pointer must be on the word itself.
+  const box = range.getBoundingClientRect();
+  return x >= box.left && x <= box.right && y >= box.top && y <= box.bottom ? range : null;
+}
+const highlights = typeof CSS !== 'undefined' && 'highlights' in CSS ? CSS.highlights : undefined;
+
 export function PopupView() {
   const [state, setState] = useState<PopupState>(empty);
   const [error, setError] = useState('');
@@ -143,6 +174,20 @@ export function PopupView() {
       await player.play();
     } catch (e) { if (source) URL.revokeObjectURL(source); setError(asError(e)); }
   };
+  const hoverWord = (event: React.MouseEvent<HTMLElement>) => {
+    const range = wordAt(event.clientX, event.clientY);
+    event.currentTarget.classList.toggle('over-word', !!range);
+    if (range) highlights?.set('dio-word', new Highlight(range)); else highlights?.delete('dio-word');
+  };
+  const clearHover = (event: React.MouseEvent<HTMLElement>) => { event.currentTarget.classList.remove('over-word'); highlights?.delete('dio-word'); };
+  /** Looks up the word clicked in definition or example text, unless the click ended a text selection. */
+  const lookupClicked = (event: React.MouseEvent<HTMLElement>) => {
+    if ((event.target as HTMLElement).closest('button, a') || !(window.getSelection()?.isCollapsed ?? true)) return;
+    const clicked = wordAt(event.clientX, event.clientY)?.toString();
+    if (!clicked || clicked.toLocaleLowerCase() === word.toLocaleLowerCase()) return;
+    clearHover(event);
+    void more(clicked);
+  };
   const speak = async (text: string, owner: 'word' | 'popup') => { setError(''); try { await call('tts_speak', { text, owner }); } catch (e) { setError(asError(e)); } };
   const pronounce = () => canSpeak ? speak(word, 'word') : play();
   useEffect(() => {
@@ -163,24 +208,31 @@ export function PopupView() {
   const antonyms = related('antonyms');
   const examples = unique(entry?.meanings.flatMap(meaning => meaning.definitions.map(definition => definition.example)) || []);
   const hasSources = !!entry && (state.entries.some(item => item.sourceUrls.length > 0 || !!item.license) || !!audio?.license || !!audio?.sourceUrl);
-  const links = (items: string[]) => items.map((item, i) => <React.Fragment key={item}>{i > 0 && ', '}<button className="link" onClick={() => void more(item)}>{item}</button></React.Fragment>);
   const variantList = <ul className="variants">{variants.map(item => <li key={`${item.dialect}${item.ipa}`}><span className="accent">{item.dialect ? item.dialect.toUpperCase() : '—'}</span><span className="ipa">{item.source === 'generated' && '≈'}{item.ipa}</span><span className="variant-source">{sourceName[item.source]}</span></li>)}</ul>;
   const sources = entry && <p className="source">Source: {state.entries.map((item, n) => <React.Fragment key={n}>{n > 0 && ' · '}{item.sourceUrls.map(url => safeUrl(url) && <a key={url} href={safeUrl(url)!} target="_blank" rel="noreferrer">Entry source</a>)}{item.license && <> · {safeUrl(item.license.url) ? <a href={safeUrl(item.license.url)!} target="_blank" rel="noreferrer">{item.license.name}</a> : item.license.name}</>}</React.Fragment>)}{audio?.sourceUrl && safeUrl(audio.sourceUrl) && <> · <a href={safeUrl(audio.sourceUrl)!} target="_blank" rel="noreferrer">Audio source</a></>}{audio?.license && <> · Audio: {safeUrl(audio.license.url) ? <a href={safeUrl(audio.license.url)!} target="_blank" rel="noreferrer">{audio.license.name}</a> : audio.license.name}</>}</p>;
-  const tabs = ([['definition', 'Definition', true], ['examples', 'Examples', examples.length > 0], ['synonyms', 'Synonyms', synonyms.length > 0]] as [Tab, string, boolean][]).filter(([, , shown]) => shown);
+  const tabs = ([['definition', 'Definition', true], ['examples', 'Examples', examples.length > 0], ['synonyms', 'Synonyms', synonyms.length > 0 || (state.expanded && antonyms.length > 0)]] as [Tab, string, boolean][]).filter(([, , shown]) => shown);
   const active = tabs.some(([id]) => id === tab) ? tab : 'definition';
   const hasOtherMeanings = state.entries.some((item, index) => item.meanings.some(meaning => meaning.definitions.length > (index === 0 && meaning === primary ? 1 : 0)));
+  const wordList = (items: string[]) => <ul className="word-columns">{items.map(item => <li key={item}><button className="link" onClick={() => void more(item)}>{item}</button></li>)}</ul>;
+  const primaryDefinition = primary ? <><span className="part">{primary.partOfSpeech}</span><p className="definition-text lookup-text">{primary.definitions[0]?.definition}</p>{primary.definitions[0]?.example && <div className="definition-example"><span>Example</span><p className="lookup-text">{primary.definitions[0].example}</p></div>}</> : <p className="muted">No definition is available for this entry.</p>;
 
   const panel = active === 'examples' ? <>
       <h2>Examples in context</h2>
-      {examples.map(example => <blockquote key={example}>{example}</blockquote>)}
+      {examples.map(example => <blockquote className="lookup-text" key={example}>{example}</blockquote>)}
     </> : active === 'synonyms' ? <>
-      <h2>Synonyms</h2>
-      <p className="subtitle">Alternatives based on this meaning</p>
-      <ul className="word-columns">{synonyms.map(item => <li key={item}><button className="link" onClick={() => void more(item)}>{item}</button></li>)}</ul>
-    </>
-    : <>
-      {primary ? <><span className="part">{primary.partOfSpeech}</span><p className="definition-text">{primary.definitions[0]?.definition}</p>{primary.definitions[0]?.example && <div className="definition-example"><span>Example</span><p>{primary.definitions[0].example}</p></div>}</> : <p className="muted">No definition is available for this entry.</p>}
-    </>;
+      {synonyms.length > 0 && <><h2>Synonyms</h2><p className="subtitle">Alternatives based on this meaning</p>{wordList(synonyms)}</>}
+      {state.expanded && antonyms.length > 0 && <div className="antonyms"><h2>Antonyms</h2>{wordList(antonyms)}</div>}
+    </> : state.expanded && entry ? <div className="details">
+      <section className="details-primary">{primaryDefinition}</section>
+      {hasOtherMeanings && <h2 className="more-meanings">More meanings</h2>}
+      {state.entries.map((item, n) => <React.Fragment key={n}>{item.meanings.map((meaning, index) => {
+        const definitions = (showAll ? meaning.definitions : meaning.definitions.slice(0, SENSES)).slice(n === 0 && meaning === primary ? 1 : 0);
+        return definitions.length > 0 && <section key={`${meaning.partOfSpeech}-${index}`}><h2>{meaning.partOfSpeech}</h2><ol>{definitions.map((definition, i) => <li key={i}><span className="lookup-text">{definition.definition}</span>{definition.example && <p className="example lookup-text">“{definition.example}”</p>}</li>)}</ol>{!showAll && meaning.definitions.length > SENSES && <button className="link show-all" onClick={() => setShowAll(true)}>Show all {meaning.definitions.length} meanings</button>}</section>;
+      })}</React.Fragment>)}
+      {variants.length > 1 && <section><h2>Pronunciation</h2>{variantList}</section>}
+      {entry.origin && <section><h2>Origin</h2><p className="lookup-text">{entry.origin}</p></section>}
+      {hasSources && <footer>{sources}</footer>}
+    </div> : primaryDefinition;
 
   return <main className={`popup ${state.expanded ? 'expanded' : ''} theme-${settings?.theme || 'system'} ${settings?.reducedMotion ? 'reduced-motion' : ''}`}>
     <header className="popup-header" data-tauri-drag-region>
@@ -197,24 +249,10 @@ export function PopupView() {
           {(audio || canSpeak) && <button className="audio-button" onClick={() => void pronounce()} aria-label="Play pronunciation" title={canSpeak ? 'Pronounce with Kokoro' : 'Play recorded pronunciation'}><Icon name="speaker"/></button>}
         </div>
         {state.stale && <p className="notice">{state.message}</p>}
-        {state.expanded ? <div className="details">
-          {primary && <section className="details-primary"><h2>Definition</h2><p>{primary.definitions[0]?.definition}</p>{primary.definitions[0]?.example && <p className="example">“{primary.definitions[0].example}”</p>}</section>}
-          {hasOtherMeanings && <h2 className="more-meanings">More meanings</h2>}
-          {state.entries.map((item, n) => <React.Fragment key={n}>{item.meanings.map((meaning, index) => {
-            const definitions = (showAll ? meaning.definitions : meaning.definitions.slice(0, SENSES)).slice(n === 0 && meaning === primary ? 1 : 0);
-            return definitions.length > 0 && <section key={`${meaning.partOfSpeech}-${index}`}><h2>{meaning.partOfSpeech}</h2><ol>{definitions.map((definition, i) => <li key={i}>{definition.definition}{definition.example && <p className="example">“{definition.example}”</p>}</li>)}</ol>{!showAll && meaning.definitions.length > SENSES && <button className="link show-all" onClick={() => setShowAll(true)}>Show all {meaning.definitions.length} meanings</button>}</section>;
-          })}</React.Fragment>)}
-          {synonyms.length > 0 && <section className="related"><h2>Synonyms</h2><p>{links(synonyms)}</p></section>}
-          {antonyms.length > 0 && <section className="related"><h2>Antonyms</h2><p>{links(antonyms)}</p></section>}
-          {variants.length > 1 && <section><h2>Pronunciation</h2>{variantList}</section>}
-          {entry.origin && <section><h2>Origin</h2><p>{entry.origin}</p></section>}
-          {hasSources && <footer>{sources}</footer>}
-        </div> : <>
-          <div className="tabs" role="tablist" aria-label="Entry sections" onKeyDown={tabKeys(tabs.map(([id]) => id), active, setTab)}>
-            {tabs.map(([id, label]) => <button key={id} role="tab" data-tab={id} id={`tab-${id}`} aria-controls="tab-panel" aria-selected={active === id} tabIndex={active === id ? 0 : -1} onClick={() => setTab(id)}>{label}</button>)}
-          </div>
-          <div className={`tab-panel panel-${active}`} id="tab-panel" role="tabpanel" aria-labelledby={`tab-${active}`}>{panel}</div>
-        </>}
+        <div className="tabs" role="tablist" aria-label="Entry sections" onKeyDown={tabKeys(tabs.map(([id]) => id), active, setTab)}>
+          {tabs.map(([id, label]) => <button key={id} role="tab" data-tab={id} id={`tab-${id}`} aria-controls="tab-panel" aria-selected={active === id} tabIndex={active === id ? 0 : -1} onClick={() => setTab(id)}>{label}</button>)}
+        </div>
+        <div className={`tab-panel panel-${active}`} id="tab-panel" role="tabpanel" aria-labelledby={`tab-${active}`} onClick={lookupClicked} onMouseMove={hoverWord} onMouseLeave={clearHover}>{panel}</div>
       </> : state.status === 'reading' ? <div className="reading"><p className="reading-label">Reading selection aloud</p><blockquote>{state.reading}</blockquote></div>
         : <div className="status"><span className={state.status === 'loading' ? 'spinner' : ''} aria-hidden="true">{state.status === 'loading' ? '' : '⌕'}</span><p>{state.message || messageFor[state.status] || 'Choose a word to look up.'}</p></div>}
       {error && <p className="notice error" role="alert">{error}</p>}
