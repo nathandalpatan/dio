@@ -1,0 +1,51 @@
+{
+  "repository": "mjbommar/opengloss-v2.4-definitions",
+  "revision": "997e1c20d262def02acb9f3c5b475b0ddac55cdc",
+  "files": [
+    {
+      "path": "data/train-00000.parquet",
+      "bytes": 18855650,
+      "sha256": "fd7d9257435be79150d4538a68b08f7cb648c5ad35e60d7f23eb4efd04ccc3b9"
+    },
+    {
+      "path": "data/train-00001.parquet",
+      "bytes": 18857304,
+      "sha256": "1b3f29f97b00ad1fe2d3426dc5c0bf0c7327103299a45cc2066031fbd5f992ca"
+    },
+    {
+      "path": "data/train-00002.parquet",
+      "bytes": 18829169,
+      "sha256": "a15383ca35cf8360b03b21bb95260c2e9d19e62c36647dc6e10195d7e0fb7ab2"
+    },
+    {
+      "path": "data/train-00003.parquet",
+      "bytes": 19086130,
+      "sha256": "1719fc5d870fef25a4585c00c991d8126a585c65dbd2876e14a7a6b800e5a1d7"
+    },
+    {
+      "path": "data/train-00004.parquet",
+      "bytes": 19210676,
+      "sha256": "266398cb8abc2c6fff2570769dffec6983f3b367de2c6cf8fd3c047642f62666"
+    },
+    {
+      "path": "data/train-00005.parquet",
+      "bytes": 18983604,
+      "sha256": "b09d5ed98af1da67c38b05966cfa00652474aa36cdc43c42494544649403a653"
+    },
+    {
+      "path": "data/train-00006.parquet",
+      "bytes": 18714334,
+      "sha256": "30d4c8af90d321daa2b9d296a7b7a1894e82920f6439754472680376ccd78d5a"
+    },
+    {
+      "path": "data/train-00007.parquet",
+      "bytes": 18582742,
+      "sha256": "5323d04789854284cc8f0ad70b1a6cdb6a269505e4f4a2fa77e498bbc1dc97e0"
+    },
+    {
+      "path": "data/train-00008.parquet",
+      "bytes": 7331311,
+      "sha256": "9d488fc803184ec38c1244a2431fea3fa22b67cbac4420c79861fc63388eba1e"
+    }
+  ]
+}

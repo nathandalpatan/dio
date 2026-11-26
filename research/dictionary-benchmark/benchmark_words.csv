@@ -1,0 +1,501 @@
+id,term,category,context_1,context_2,selection_tag
+B0001,catalyst,academic_scientific,The catalyst increased the reaction rate.,,curated
+B0002,date,polysemous,Their first date was at a cafe.,Check the date on the carton.,curated
+B0003,women,inflected_irregular,The women gathered for the meeting.,,curated
+B0004,reagent,academic_scientific,The technician added a reagent to the sample.,,curated
+B0005,subtweet,modern_slang,He posted a subtweet about the disagreement.,,curated
+B0006,livestream,modern_slang,They watched the concert on a livestream.,,curated
+B0007,apple,everyday,She packed an apple for lunch.,,curated
+B0008,look into,phrasal_verbs,The council will look into the complaint.,,curated
+B0009,kernel,computing,The kernel handled the system call.,,curated
+B0010,sort out,phrasal_verbs,They need to sort out the billing problem.,,curated
+B0011,control group,academic_scientific,The control group received no treatment.,,curated
+B0012,capricious,advanced,The capricious weather ruined our plans.,,curated
+B0013,prolific,advanced,The prolific author released another novel.,,curated
+B0014,drove,inflected_irregular,She drove through the city.,,curated
+B0015,token,computing,The login token expired after an hour.,,curated
+B0016,take off,phrasal_verbs,The plane will take off in ten minutes.,,curated
+B0017,well,polysemous,The village drew water from a well.,She performed well in the exam.,curated
+B0018,find out,phrasal_verbs,We will find out the result tonight.,,curated
+B0019,garden,everyday,Tomatoes grow in the garden.,,curated
+B0020,school,everyday,The school opens at eight.,,curated
+B0021,spurious,advanced,The article relied on spurious claims.,,curated
+B0022,sharp,polysemous,This knife has a sharp blade.,She gave a sharp reply.,curated
+B0023,sus,modern_slang,That message looks sus to me.,,curated
+B0024,morning,everyday,The train arrives every morning.,,curated
+B0025,ecosystem,academic_scientific,The wetland ecosystem supports many birds.,,curated
+B0026,mitigate,advanced,Trees can mitigate summer heat.,,curated
+B0027,deserialization,computing,Deserialization restored the saved object.,,curated
+B0028,chips,regional,They served fish and chips for lunch.,,curated
+B0029,lowkey,modern_slang,I am lowkey excited about the trip.,,curated
+B0030,momentum,academic_scientific,The collision changed the ball's momentum.,,curated
+B0031,sound,polysemous,The bell made a loud sound.,The bridge is structurally sound.,curated
+B0032,ticket,everyday,He bought a ticket at the station.,,curated
+B0033,check in,phrasal_verbs,Guests can check in after three.,,curated
+B0034,current,polysemous,The river current was strong.,The current policy expires tomorrow.,curated
+B0035,face the music,idioms,He had to face the music after the mistake.,,curated
+B0036,sang,inflected_irregular,The choir sang quietly.,,curated
+B0037,shitpost,modern_slang,He made a shitpost to amuse his followers.,,curated
+B0038,right,polysemous,Turn right at the corner.,Everyone has a right to appeal.,curated
+B0039,merge,computing,The developer resolved a conflict during the merge.,,curated
+B0040,variable,academic_scientific,The researcher changed one variable at a time.,,curated
+B0041,slay,modern_slang,Her friends said she would slay at the audition.,,curated
+B0042,deleterious,advanced,The chemical had a deleterious effect on fish.,,curated
+B0043,slowly,everyday,The queue moved slowly.,,curated
+B0044,train,polysemous,The train arrived on time.,They train together twice a week.,curated
+B0045,spill the beans,idioms,Please do not spill the beans about the party.,,curated
+B0046,watch,polysemous,I checked my watch for the time.,Watch the children near the pool.,curated
+B0047,rain,everyday,The rain stopped before noon.,,curated
+B0048,peer review,academic_scientific,The manuscript entered peer review.,,curated
+B0049,obfuscate,advanced,The report seemed designed to obfuscate the costs.,,curated
+B0050,firewall,computing,The firewall blocked the unwanted connection.,,curated
+B0051,gobsmacked,regional,He was gobsmacked by the result.,,curated
+B0052,emoji,modern_slang,He ended the message with an emoji.,,curated
+B0053,parsimonious,advanced,A parsimonious model needs fewer parameters.,,curated
+B0054,sycophantic,advanced,The sycophantic praise embarrassed her.,,curated
+B0055,neighbour,everyday,Our neighbour watered the plants.,,curated
+B0056,get away,phrasal_verbs,They hope to get away for the weekend.,,curated
+B0057,integral,academic_scientific,The class evaluated the integral.,,curated
+B0058,bandwidth,computing,The upload used most of the available bandwidth.,,curated
+B0059,made,inflected_irregular,They made soup for dinner.,,curated
+B0060,ineffable,advanced,She described an ineffable sense of relief.,,curated
+B0061,heaps,regional,There were heaps of people at the concert.,,curated
+B0062,flat,regional,They rented a small flat near the station.,,curated
+B0063,message,everyday,I sent a message to my sister.,,curated
+B0064,arvo,regional,We will meet this arvo.,,curated
+B0065,spoke,inflected_irregular,She spoke to the manager.,,curated
+B0066,phenotype,academic_scientific,The phenotype varied with the environment.,,curated
+B0067,through thick and thin,idioms,They stayed friends through thick and thin.,,curated
+B0068,sunnies,regional,She put on her sunnies outside.,,curated
+B0069,in hot water,idioms,He was in hot water after missing the deadline.,,curated
+B0070,ephemeral,advanced,The flowers' ephemeral beauty faded by dusk.,,named_challenge
+B0071,picture,everyday,She hung a picture above the desk.,,curated
+B0072,board,polysemous,The board approved the budget.,He carried a wooden board upstairs.,curated
+B0073,keep up,phrasal_verbs,He struggled to keep up with the class.,,curated
+B0074,throughput,computing,The server's throughput dropped under load.,,curated
+B0075,enzyme,academic_scientific,The enzyme sped up the reaction.,,curated
+B0076,thirsty,modern_slang,The replies looked thirsty rather than friendly.,,curated
+B0077,proof,academic_scientific,The mathematician checked each step of the proof.,,curated
+B0078,give someone the benefit of the doubt,idioms,Try to give someone the benefit of the doubt.,,curated
+B0079,entropy,academic_scientific,The physicist calculated the system's entropy.,,curated
+B0080,lucid,advanced,His lucid explanation helped the class.,,curated
+B0081,protocol,computing,The protocol defined the message format.,,curated
+B0082,bloody,regional,It was a bloody nuisance to repair.,,curated
+B0083,derivative,academic_scientific,They calculated the derivative of the function.,,curated
+B0084,carry,everyday,I can carry the heavy bag.,,curated
+B0085,door,everyday,Please close the door behind you.,,curated
+B0086,genome,academic_scientific,The team sequenced the organism's genome.,,curated
+B0087,bank,polysemous,She deposited the cheque at the bank.,The child sat on the river bank.,named_challenge
+B0088,cogent,advanced,The lawyer made a cogent argument.,,curated
+B0089,garrulous,advanced,The garrulous host talked through dinner.,,curated
+B0090,library,everyday,I borrowed a novel from the library.,,curated
+B0091,pragmatic,advanced,They chose a pragmatic solution within budget.,,named_challenge
+B0092,charge,polysemous,The shop will charge a fee.,The soldiers began to charge forward.,curated
+B0093,crane,polysemous,A crane lifted the steel beam.,A crane stood in the marsh.,curated
+B0094,amplitude,academic_scientific,The wave's amplitude doubled.,,curated
+B0095,main character energy,modern_slang,He walked into the room with main character energy.,,curated
+B0096,take for granted,idioms,Do not take for granted the help you receive.,,named_challenge
+B0097,hungry,everyday,I felt hungry after swimming.,,curated
+B0098,run,polysemous,I run five kilometres each morning.,The theatre will run the play through June.,named_challenge
+B0099,ship,modern_slang,Fans ship the two fictional characters.,,curated
+B0100,fastidious,advanced,He was fastidious about punctuation.,,curated
+B0101,repair,everyday,They will repair the broken fence.,,curated
+B0102,better,inflected_irregular,Her health is better this week.,,named_challenge
+B0103,look after,phrasal_verbs,She will look after the dog.,,curated
+B0104,scale,polysemous,The fish had shiny scales.,The map uses a small scale.,curated
+B0105,point out,phrasal_verbs,She tried to point out the error.,,curated
+B0106,slept,inflected_irregular,The baby slept through the night.,,curated
+B0107,write down,phrasal_verbs,Please write down your phone number.,,curated
+B0108,feet,inflected_irregular,Her feet were wet after the walk.,,curated
+B0109,matrix,academic_scientific,The matrix had three rows and four columns.,,curated
+B0110,lift,regional,We took the lift to the fourth floor.,,curated
+B0111,semaphore,computing,The semaphore limited access to three workers.,,curated
+B0112,transaction,computing,The transaction committed both updates together.,,curated
+B0113,database,computing,The database stored customer records.,,curated
+B0114,spring,polysemous,Flowers bloom in spring.,The mattress has a broken spring.,curated
+B0115,cap,modern_slang,They said his story was cap.,,curated
+B0116,give up,phrasal_verbs,She refused to give up after failing once.,,curated
+B0117,biodiversity,academic_scientific,The survey measured forest biodiversity.,,curated
+B0118,pāua,regional,They found a pāua shell on the shore.,,curated
+B0119,atom,academic_scientific,The atom lost an electron.,,curated
+B0120,ate,inflected_irregular,They ate dinner early.,,curated
+B0121,runtime,computing,The error appeared only at runtime.,,curated
+B0122,fine,polysemous,He paid a parking fine.,The fabric had a fine texture.,named_challenge
+B0123,seal,polysemous,A seal swam near the shore.,Press the lid to seal the jar.,curated
+B0124,break down,phrasal_verbs,The old car might break down.,,curated
+B0125,evening,everyday,We walked home in the evening.,,curated
+B0126,cancelled,modern_slang,The comedian said he had been cancelled online.,,curated
+B0127,velocity,academic_scientific,The object's velocity changed direction.,,curated
+B0128,threw,inflected_irregular,He threw the ball over the fence.,,curated
+B0129,iterator,computing,The iterator returned one item at a time.,,curated
+B0130,vacuous,advanced,His vacuous response answered nothing.,,curated
+B0131,get along,phrasal_verbs,The siblings usually get along well.,,curated
+B0132,let down,phrasal_verbs,I do not want to let down the team.,,curated
+B0133,held,inflected_irregular,He held the rope firmly.,,curated
+B0134,heard,inflected_irregular,She heard a knock at the door.,,curated
+B0135,osmosis,academic_scientific,Water crossed the membrane through osmosis.,,curated
+B0136,gave,inflected_irregular,He gave her a notebook.,,curated
+B0137,delulu,modern_slang,The fan called her own prediction delulu.,,named_challenge
+B0138,jam,polysemous,Traffic was stuck in a jam.,She spread jam on the toast.,curated
+B0139,when pigs fly,idioms,He said he would volunteer when pigs fly.,,curated
+B0140,schema,computing,The migration changed the database schema.,,curated
+B0141,bark,polysemous,The dog's bark woke us.,The bark peeled from the tree.,curated
+B0142,present,polysemous,She received a birthday present.,He will present the findings tomorrow.,curated
+B0143,compiler,computing,The compiler rejected the invalid source file.,,curated
+B0144,perspicacious,advanced,A perspicacious reader spotted the clue.,,curated
+B0145,desert,polysemous,They crossed the desert at dawn.,Do not desert your teammates.,curated
+B0146,queue,regional,We waited in a queue outside.,,curated
+B0147,encryption,computing,Encryption protected the stored file.,,curated
+B0148,quiet,everyday,The library was quiet today.,,curated
+B0149,hashtag,modern_slang,She added a hashtag to the post.,,curated
+B0150,turn on,phrasal_verbs,Please turn on the lamp.,,curated
+B0151,play it by ear,idioms,We can play it by ear if the weather changes.,,curated
+B0152,hard yakka,regional,Digging the trench was hard yakka.,,curated
+B0153,vector,academic_scientific,The vector pointed north on the diagram.,,curated
+B0154,receipt,everyday,Keep the receipt for a refund.,,curated
+B0155,gaslighting,modern_slang,She accused him of gaslighting her during arguments.,,named_challenge
+B0156,come up with,phrasal_verbs,Can you come up with another plan?,,curated
+B0157,based,modern_slang,Several commenters called her take based.,,curated
+B0158,gravity,academic_scientific,Gravity pulled the stone toward Earth.,,curated
+B0159,cut down on,phrasal_verbs,The doctor told him to cut down on sugar.,,curated
+B0160,throw away,phrasal_verbs,Do not throw away the receipt.,,curated
+B0161,molecule,academic_scientific,The molecule contains two oxygen atoms.,,curated
+B0162,by the book,idioms,The inspector did everything by the book.,,curated
+B0163,rose,inflected_irregular,The water rose after the storm.,,curated
+B0164,inchoate,advanced,Her inchoate idea needed further work.,,curated
+B0165,coffee,everyday,He made coffee before work.,,curated
+B0166,turn off,phrasal_verbs,Remember to turn off the stove.,,curated
+B0167,perfunctory,advanced,He gave a perfunctory apology and left.,,curated
+B0168,axiom,academic_scientific,The proof began with an axiom.,,curated
+B0169,pedantic,advanced,His pedantic corrections slowed the discussion.,,named_challenge
+B0170,taxonomy,academic_scientific,The biologist revised the species taxonomy.,,curated
+B0171,sweet as,regional,The mechanic said the car was sweet as.,,curated
+B0172,polymorphism,computing,The course introduced polymorphism through interface examples.,,named_challenge
+B0173,make ends meet,idioms,They worked two jobs to make ends meet.,,curated
+B0174,parse,computing,The parser will parse the input string.,,curated
+B0175,file,polysemous,She saved the file on her laptop.,Use a file to smooth the edge.,curated
+B0176,index,computing,The query used an index to find the row.,,curated
+B0177,lead,polysemous,The guide will lead the group.,The old pipes contain lead.,curated
+B0178,chilly bin,regional,The drinks stayed cold in the chilly bin.,,curated
+B0179,process,computing,A background process consumed the memory.,,curated
+B0180,draft,polysemous,She wrote a draft of the letter.,A cold draft came through the window.,curated
+B0181,let the cat out of the bag,idioms,He let the cat out of the bag before the announcement.,,curated
+B0182,minute,polysemous,Wait a minute before opening it.,A minute detail changed the result.,curated
+B0183,carry on,phrasal_verbs,Please carry on with the lesson.,,curated
+B0184,kind,polysemous,What kind of bread is this?,She was kind to the newcomer.,curated
+B0185,coefficient,academic_scientific,The coefficient was negative in the model.,,curated
+B0186,middleware,computing,The middleware checked each request.,,curated
+B0187,container,computing,The service ran inside a container.,,curated
+B0188,run into,phrasal_verbs,We may run into traffic on the way.,,curated
+B0189,scrupulous,advanced,The auditor was scrupulous with the records.,,curated
+B0190,clip,polysemous,Use a clip to hold the papers.,They watched a short film clip.,curated
+B0191,photosynthesis,academic_scientific,The lesson explained photosynthesis in leaves.,,curated
+B0192,put all your eggs in one basket,idioms,Do not put all your eggs in one basket.,,curated
+B0193,anachronistic,advanced,The rotary phone looked anachronistic in the office.,,curated
+B0194,wavelength,academic_scientific,The instrument measured the light's wavelength.,,curated
+B0195,chosen,inflected_irregular,The chosen candidate accepted the job.,,curated
+B0196,recursion,computing,The function used recursion to traverse the tree.,,curated
+B0197,catfish,modern_slang,The profile was a catfish using stolen photos.,,curated
+B0198,brainrot,modern_slang,She joked that the endless videos had given her brainrot.,,curated
+B0199,flex,modern_slang,He posted the receipt as a flex.,,curated
+B0200,record,polysemous,The runner broke the record.,Please record the meeting.,curated
+B0201,tenuous,advanced,The proposed link remains tenuous.,,curated
+B0202,miss the boat,idioms,Apply today so you do not miss the boat.,,curated
+B0203,dairy,regional,He bought milk at the corner dairy.,,curated
+B0204,pass out,phrasal_verbs,He felt faint and thought he might pass out.,,curated
+B0205,sad,everyday,The ending made him sad.,,curated
+B0206,turn a blind eye,idioms,The manager would not turn a blind eye to fraud.,,curated
+B0207,answer,everyday,Write your answer on the form.,,curated
+B0208,idiosyncratic,advanced,Her idiosyncratic method still worked.,,curated
+B0209,equivocal,advanced,The witness gave an equivocal answer.,,curated
+B0210,ambivalent,advanced,She felt ambivalent about moving abroad.,,curated
+B0211,full,everyday,The car park was full.,,curated
+B0212,virtual machine,computing,They started a virtual machine for testing.,,curated
+B0213,see eye to eye,idioms,The colleagues did not see eye to eye on the budget.,,curated
+B0214,work out,phrasal_verbs,We can work out the total together.,,curated
+B0215,get the hang of it,idioms,You will get the hang of it with practice.,,curated
+B0216,turn down,phrasal_verbs,He chose to turn down the offer.,,curated
+B0217,hard launch,modern_slang,The couple made a hard launch with a photo together.,,curated
+B0218,munted,regional,The bicycle was munted after the crash.,,curated
+B0219,check out,phrasal_verbs,We need to check out before noon.,,curated
+B0220,pH,academic_scientific,They measured the water's pH.,,curated
+B0221,torch,regional,Take a torch for the dark path.,,curated
+B0222,choose,everyday,Choose a seat near the front.,,curated
+B0223,pick up,phrasal_verbs,Can you pick up the children at four?,,curated
+B0224,take the plunge,idioms,They chose to take the plunge and open a shop.,,curated
+B0225,pull someone's leg,idioms,He tried to pull someone's leg with the story.,,curated
+B0226,lost,inflected_irregular,He lost the house keys.,,curated
+B0227,cross that bridge when we come to it,idioms,We can cross that bridge when we come to it.,,curated
+B0228,pitch,polysemous,The singer held a high pitch.,They played football on the pitch.,curated
+B0229,ubiquitous,advanced,Smartphones are ubiquitous on the train.,,named_challenge
+B0230,influencer,modern_slang,The influencer promoted a new skincare brand.,,curated
+B0231,clean,everyday,Please clean the kitchen floor.,,curated
+B0232,look up,phrasal_verbs,Please look up the address online.,,curated
+B0233,salient,advanced,The judge summarized the salient facts.,,curated
+B0234,jandals,regional,She wore jandals to the beach.,,curated
+B0235,frequency,academic_scientific,The signal's frequency increased.,,curated
+B0236,clapback,modern_slang,Her sharp clapback drew thousands of replies.,,curated
+B0237,fill in,phrasal_verbs,Could you fill in this form?,,curated
+B0238,dummy,regional,The toddler dropped his dummy.,,curated
+B0239,methodology,academic_scientific,The paper described its methodology in detail.,,curated
+B0240,ghosting,modern_slang,"After three dates, he stopped replying and she called it ghosting.",,curated
+B0241,nappy,regional,The baby needs a clean nappy.,,curated
+B0242,puku,regional,The child patted his full puku.,,curated
+B0243,kept,inflected_irregular,They kept the receipt.,,curated
+B0244,doomscrolling,modern_slang,He spent the evening doomscrolling through bad news.,,named_challenge
+B0245,turn around,phrasal_verbs,The driver had to turn around.,,curated
+B0246,the last straw,idioms,The third delay was the last straw.,,curated
+B0247,magnanimous,advanced,She was magnanimous after winning.,,curated
+B0248,brought,inflected_irregular,She brought the books to class.,,named_challenge
+B0249,dependency,computing,The project gained a new dependency.,,curated
+B0250,extra,modern_slang,She said the elaborate apology was extra.,,curated
+B0251,make up,phrasal_verbs,The children like to make up stories.,,curated
+B0252,contentious,advanced,The zoning proposal became contentious.,,curated
+B0253,vibe,modern_slang,The cafe has a relaxed vibe.,,curated
+B0254,ran,inflected_irregular,She ran to catch the bus.,,named_challenge
+B0255,price,everyday,Check the price before buying.,,curated
+B0256,grow up,phrasal_verbs,She wants to grow up near the sea.,,curated
+B0257,bonnet,regional,The mechanic opened the car bonnet.,,curated
+B0258,holiday,everyday,They planned a holiday in June.,,curated
+B0259,plain,polysemous,The valley spread across the plain.,He preferred a plain white shirt.,curated
+B0260,pointer,computing,The pointer referred to allocated memory.,,curated
+B0261,content,polysemous,The article's content was useful.,She felt content with her choice.,curated
+B0262,discerning,advanced,The discerning buyer noticed the flaw.,,curated
+B0263,bite the bullet,idioms,They decided to bite the bullet and pay for repairs.,,curated
+B0264,friend,everyday,A friend offered to help.,,curated
+B0265,swam,inflected_irregular,She swam across the pool.,,curated
+B0266,IRL,modern_slang,We had only chatted online before meeting IRL.,,curated
+B0267,street,everyday,The market is across the street.,,curated
+B0268,wrote,inflected_irregular,He wrote a letter to his friend.,,curated
+B0269,sanction,polysemous,The regulator imposed a sanction on the firm.,The board will sanction the proposed sale.,named_challenge
+B0270,marae,regional,The group met at the marae.,,curated
+B0271,show up,phrasal_verbs,He promised to show up for the interview.,,curated
+B0272,deplatform,modern_slang,The service chose to deplatform the account.,,curated
+B0273,cheers,regional,She said cheers when the driver stopped.,,curated
+B0274,a piece of cake,idioms,The quiz was a piece of cake for her.,,curated
+B0275,park,polysemous,They walked through the park.,Please park beside the gate.,curated
+B0276,algorithm,computing,The algorithm sorts the list efficiently.,,curated
+B0277,borrow,everyday,Can I borrow your umbrella?,,curated
+B0278,under the weather,idioms,He stayed home because he felt under the weather.,,curated
+B0279,object,polysemous,The museum displayed a rare object.,I object to the proposed fee.,curated
+B0280,have a chip on your shoulder,idioms,You seem to have a chip on your shoulder.,,curated
+B0281,esoteric,advanced,The lecture covered esoteric legal history.,,curated
+B0282,pōwhiri,regional,The visitors attended a pōwhiri at the marae.,,curated
+B0283,brekkie,regional,He ate brekkie before work.,,curated
+B0284,bridge,polysemous,They crossed the bridge on foot.,The dentist fitted a bridge.,curated
+B0285,obdurate,advanced,The obdurate manager refused to reconsider.,,curated
+B0286,mid,modern_slang,"The film was mid, according to his review.",,curated
+B0287,tear,polysemous,A tear rolled down her cheek.,Try not to tear the paper.,curated
+B0288,written,inflected_irregular,The written instructions were clear.,,curated
+B0289,ragebait,modern_slang,The outrageous post seemed designed as ragebait.,,curated
+B0290,correlation,academic_scientific,The chart showed a correlation between the variables.,,curated
+B0291,disparate,advanced,The survey combined disparate groups.,,curated
+B0292,out of the blue,idioms,She called me out of the blue.,,curated
+B0293,implacable,advanced,The two sides faced implacable opposition.,,curated
+B0294,inertia,academic_scientific,Inertia kept the object moving.,,curated
+B0295,rode,inflected_irregular,The child rode a bicycle to school.,,curated
+B0296,longitudinal,academic_scientific,The longitudinal study followed children for years.,,curated
+B0297,mutex,computing,The threads used a mutex to guard the shared counter.,,named_challenge
+B0298,late,everyday,She arrived late for class.,,curated
+B0299,placebo,academic_scientific,The trial compared the drug with a placebo.,,curated
+B0300,highkey,modern_slang,She is highkey obsessed with that show.,,curated
+B0301,student,everyday,Each student received a notebook.,,curated
+B0302,grew,inflected_irregular,The tree grew taller each year.,,curated
+B0303,soft launch,modern_slang,They did a soft launch of their relationship online.,,curated
+B0304,exacerbate,advanced,The delay could exacerbate the shortage.,,curated
+B0305,aubergine,regional,The recipe calls for one aubergine.,,curated
+B0306,she'll be right,regional,He said she'll be right despite the rain.,,curated
+B0307,YOLO,modern_slang,He shouted YOLO before jumping into the pool.,,curated
+B0308,repository,computing,The repository held the source code.,,curated
+B0309,the ball is in your court,idioms,"I sent the proposal, so the ball is in your court.",,curated
+B0310,theorem,academic_scientific,She proved the theorem in class.,,curated
+B0311,framework,computing,The team built the app with a web framework.,,curated
+B0312,latency,computing,Network latency delayed the response.,,curated
+B0313,parasocial,modern_slang,She described the one-sided attachment as parasocial.,,curated
+B0314,loo,regional,The sign pointed toward the loo.,,curated
+B0315,shook,inflected_irregular,The earthquake shook the building.,,curated
+B0316,DM,modern_slang,Send me a DM with the details.,,curated
+B0317,at the drop of a hat,idioms,She can leave at the drop of a hat.,,curated
+B0318,equilibrium,academic_scientific,The reaction reached equilibrium overnight.,,curated
+B0319,light,polysemous,Turn on the light in the hall.,This suitcase is light enough to carry.,named_challenge
+B0320,eloquent,advanced,Her eloquent speech held the room.,,curated
+B0321,finsta,modern_slang,She shared the photo only on her finsta.,,curated
+B0322,wake up,phrasal_verbs,The alarm will wake up the children.,,curated
+B0323,whānau,regional,Her whānau gathered for dinner.,,curated
+B0324,jumper,regional,He wore a woollen jumper in winter.,,curated
+B0325,question,everyday,The question has a simple answer.,,curated
+B0326,clickbait,modern_slang,The headline looked like clickbait.,,curated
+B0327,teeth,inflected_irregular,He brushed his teeth before bed.,,curated
+B0328,causation,academic_scientific,The researchers warned that correlation does not prove causation.,,curated
+B0329,no cap,modern_slang,"The concert was incredible, no cap.",,curated
+B0330,once in a blue moon,idioms,We eat out once in a blue moon.,,curated
+B0331,hang out,phrasal_verbs,They often hang out after school.,,curated
+B0332,vicissitude,advanced,They adapted to every vicissitude of the season.,,curated
+B0333,biscuit,regional,She had a biscuit with her tea.,,curated
+B0334,yeah nah,regional,"Her reply was yeah nah, so we waited.",,curated
+B0335,water,everyday,Drink some water after the run.,,curated
+B0336,bend over backwards,idioms,The staff will bend over backwards to help.,,curated
+B0337,flew,inflected_irregular,The bird flew over the roof.,,curated
+B0338,ostensibly,advanced,The meeting was ostensibly about staffing.,,named_challenge
+B0339,get over,phrasal_verbs,It took months to get over the illness.,,curated
+B0340,corollary,academic_scientific,The corollary followed from the main result.,,curated
+B0341,thought,inflected_irregular,I thought about your suggestion.,,curated
+B0342,confidence interval,academic_scientific,The estimate included a confidence interval.,,curated
+B0343,table,everyday,The keys are on the table.,,curated
+B0344,mana,regional,The leader earned mana through service.,,curated
+B0345,cloud,everyday,A dark cloud covered the sun.,,curated
+B0346,burn the midnight oil,idioms,She had to burn the midnight oil before the deadline.,,curated
+B0347,tired,everyday,We were tired after the trip.,,curated
+B0348,went,inflected_irregular,He went home after work.,,named_challenge
+B0349,FOMO,modern_slang,She booked a ticket because of FOMO.,,curated
+B0350,go on,phrasal_verbs,Please go on with your story.,,curated
+B0351,ubiquity,advanced,The ubiquity of cameras changed the debate.,,curated
+B0352,screen,polysemous,The phone screen cracked.,They used trees to screen the house.,curated
+B0353,mouse,polysemous,A mouse hid behind the cupboard.,The computer mouse stopped working.,curated
+B0354,cost an arm and a leg,idioms,The repairs could cost an arm and a leg.,,curated
+B0355,in the nick of time,idioms,The ambulance arrived in the nick of time.,,curated
+B0356,serialization,computing,Serialization converted the object into bytes.,,curated
+B0357,window,everyday,Rain tapped against the window.,,curated
+B0358,nuanced,advanced,Her nuanced argument acknowledged both risks.,,named_challenge
+B0359,forgotten,inflected_irregular,The forgotten keys were still on the table.,,curated
+B0360,reproducibility,academic_scientific,The lab tested the result's reproducibility.,,curated
+B0361,tramping,regional,They went tramping in the mountains.,,curated
+B0362,courgette,regional,She sliced a courgette for the stew.,,curated
+B0363,case,polysemous,The lawyer prepared the case.,Put the camera in its case.,curated
+B0364,drop off,phrasal_verbs,Please drop off the parcel at reception.,,curated
+B0365,laconic,advanced,His laconic reply was just one word.,,curated
+B0366,keep an eye on,idioms,Please keep an eye on the oven.,,curated
+B0367,break the ice,idioms,She told a joke to break the ice.,,named_challenge
+B0368,tuatara,regional,A tuatara rested in the sanctuary.,,curated
+B0369,acceleration,academic_scientific,The car's acceleration was measured.,,curated
+B0370,paid,inflected_irregular,She paid the invoice yesterday.,,curated
+B0371,return,everyday,Please return the book tomorrow.,,curated
+B0372,met,inflected_irregular,I met her at the station.,,curated
+B0373,spent,inflected_irregular,They spent the afternoon gardening.,,curated
+B0374,socket,computing,The client opened a socket to the server.,,curated
+B0375,hashing,computing,Hashing produced a fixed-size digest.,,curated
+B0376,thread,computing,The program started another thread for the task.,,curated
+B0377,salty,modern_slang,He sounded salty after losing the match.,,curated
+B0378,wellies,regional,The children wore wellies in the mud.,,curated
+B0379,drank,inflected_irregular,He drank a glass of water.,,curated
+B0380,bat,polysemous,A bat flew out at dusk.,She swung the bat at the ball.,curated
+B0381,warm,everyday,The blanket kept her warm.,,curated
+B0382,cache,computing,The cache stored recently requested pages.,,curated
+B0383,deadlock,computing,Both threads waited forever in a deadlock.,,curated
+B0384,row,polysemous,They sat in the front row.,The neighbours had a row over noise.,curated
+B0385,touch grass,modern_slang,His friends told him to touch grass after the argument.,,curated
+B0386,isotope,academic_scientific,The isotope decayed over time.,,curated
+B0387,plot,polysemous,The novel's plot was complex.,They bought a small plot of land.,curated
+B0388,intransigent,advanced,The committee remained intransigent during talks.,,curated
+B0389,meme,modern_slang,The meme spread across the group chat.,,curated
+B0390,empty,everyday,The bottle was empty by noon.,,curated
+B0391,reticent,advanced,He was reticent about his childhood.,,curated
+B0392,fallen,inflected_irregular,The fallen leaves covered the path.,,curated
+B0393,geese,inflected_irregular,The geese flew south.,,curated
+B0394,bread,everyday,Fresh bread cooled on the counter.,,curated
+B0395,kūmara,regional,They roasted kūmara with the vegetables.,,curated
+B0396,hidden,inflected_irregular,The hidden door opened slowly.,,curated
+B0397,commit,computing,The commit changed three files.,,curated
+B0398,done,inflected_irregular,The work was done before noon.,,curated
+B0399,webhook,computing,The webhook notified the service about payment.,,curated
+B0400,call it a day,idioms,"After six hours, they decided to call it a day.",,curated
+B0401,bring up,phrasal_verbs,I will bring up the issue tomorrow.,,curated
+B0402,population,academic_scientific,The study sampled the island population.,,curated
+B0403,knackered,regional,She was knackered after the shift.,,curated
+B0404,p-value,academic_scientific,The paper reported a p-value for the test.,,curated
+B0405,substantiate,advanced,Please substantiate the figures with receipts.,,curated
+B0406,forgot,inflected_irregular,I forgot my umbrella.,,curated
+B0407,put off,phrasal_verbs,They had to put off the meeting.,,curated
+B0408,interpreter,computing,The interpreter executed each statement in order.,,curated
+B0409,no strings attached,idioms,The grant came with no strings attached.,,curated
+B0410,quantum,academic_scientific,The lecture introduced quantum mechanics.,,curated
+B0411,stood,inflected_irregular,He stood beside the gate.,,curated
+B0412,crisps,regional,He bought a packet of crisps.,,curated
+B0413,cold,everyday,The soup is already cold.,,curated
+B0414,hypothesis,academic_scientific,The experiment tested the hypothesis.,,curated
+B0415,stan,modern_slang,She has been a stan of the band for years.,,curated
+B0416,saw,inflected_irregular,She saw a fox near the road.,,curated
+B0417,back to square one,idioms,The failed test sent us back to square one.,,curated
+B0418,look for,phrasal_verbs,We need to look for the missing key.,,curated
+B0419,beat around the bush,idioms,Stop trying to beat around the bush and tell me.,,curated
+B0420,early,everyday,The bus came early today.,,curated
+B0421,sent,inflected_irregular,He sent the package on Monday.,,curated
+B0422,hit the nail on the head,idioms,Your comment hit the nail on the head.,,curated
+B0423,set,polysemous,Set the cup on the shelf.,The sun set behind the hills.,named_challenge
+B0424,query,computing,The query returned twenty rows.,,curated
+B0425,race condition,computing,A race condition made the result unpredictable.,,curated
+B0426,match,polysemous,The teams played a close match.,Strike a match to light the candle.,curated
+B0427,apocryphal,advanced,The apocryphal story spread through town.,,curated
+B0428,payload,computing,The request payload contained a JSON object.,,curated
+B0429,come across,phrasal_verbs,You may come across an unfamiliar word.,,curated
+B0430,ameliorate,advanced,New insulation should ameliorate the cold.,,curated
+B0431,branch,computing,She created a branch for the fix.,,curated
+B0432,idempotent,computing,The API's idempotent operation can be retried safely.,,named_challenge
+B0433,endpoint,computing,The mobile app called the login endpoint.,,curated
+B0434,hold on,phrasal_verbs,Please hold on while I check.,,curated
+B0435,cut corners,idioms,The contractor did not cut corners on safety.,,curated
+B0436,kea,regional,A kea perched near the trail.,,curated
+B0437,unfollow,modern_slang,She decided to unfollow the account.,,curated
+B0438,chur,regional,He said chur when his friend helped.,,curated
+B0439,boot,regional,The groceries are in the car boot.,,curated
+B0440,knew,inflected_irregular,She knew the answer already.,,curated
+B0441,family,everyday,Her family came for dinner.,,curated
+B0442,bach,regional,They stayed in a bach by the lake.,,curated
+B0443,children,inflected_irregular,The children played outside.,,named_challenge
+B0444,rule of thumb,idioms,"As a rule of thumb, allow an hour for the trip.",,named_challenge
+B0445,put up with,phrasal_verbs,I cannot put up with the noise.,,curated
+B0446,bow,polysemous,She tied a bow on the gift.,The actor took a bow after the show.,curated
+B0447,call off,phrasal_verbs,The organisers may call off the match.,,curated
+B0448,glow up,modern_slang,Her friends admired her glow up.,,curated
+B0449,skibidi,modern_slang,The children kept repeating skibidi at lunch.,,curated
+B0450,togs,regional,Bring your togs for the swim.,,curated
+B0451,back up,phrasal_verbs,Remember to back up the files.,,curated
+B0452,unfriend,modern_slang,He chose to unfriend the stranger.,,curated
+B0453,keep your chin up,idioms,Keep your chin up while you recover.,,curated
+B0454,rollback,computing,A rollback restored the previous state.,,curated
+B0455,left,polysemous,He left the room quietly.,Turn left after the bridge.,curated
+B0456,key,polysemous,She lost the key to the door.,The song is in a minor key.,curated
+B0457,journey,everyday,The journey took three hours.,,curated
+B0458,go the extra mile,idioms,The nurse chose to go the extra mile for patients.,,curated
+B0459,recalcitrant,advanced,The recalcitrant witness ignored the summons.,,curated
+B0460,sample,academic_scientific,The lab tested a sample of water.,,curated
+B0461,down to earth,idioms,Her down to earth advice was useful.,,curated
+B0462,hand in,phrasal_verbs,Students must hand in the assignment.,,curated
+B0463,strike,polysemous,The workers voted to strike.,A storm could strike the coast.,curated
+B0464,get cold feet,idioms,She began to get cold feet before the wedding.,,curated
+B0465,teacher,everyday,The teacher explained the lesson.,,curated
+B0466,happy,everyday,She looked happy with the result.,,curated
+B0467,move on,phrasal_verbs,It was time to move on after the setback.,,curated
+B0468,broken,inflected_irregular,The broken cup lay on the floor.,,curated
+B0469,up in the air,idioms,The travel plans are still up in the air.,,curated
+B0470,frozen,inflected_irregular,The frozen lake was unsafe to cross.,,curated
+B0471,cringe,modern_slang,The old advert made everyone cringe.,,curated
+B0472,set off,phrasal_verbs,They plan to set off at dawn.,,curated
+B0473,sit on the fence,idioms,She refused to sit on the fence during the vote.,,curated
+B0474,wore,inflected_irregular,She wore a blue coat.,,curated
+B0475,kai,regional,They shared kai after the meeting.,,curated
+B0476,on the same page,idioms,We checked that everyone was on the same page.,,curated
+B0477,mice,inflected_irregular,The mice ran into the barn.,,curated
+B0478,quickly,everyday,He quickly crossed the road.,,curated
+B0479,put away,phrasal_verbs,Please put away the clean dishes.,,curated
+B0480,taught,inflected_irregular,He taught science for ten years.,,curated
+B0481,ta,regional,He said ta after receiving the parcel.,,curated
+B0482,jump the gun,idioms,Do not jump the gun before the results arrive.,,curated
+B0483,trainers,regional,She bought new trainers for running.,,curated
+B0484,rizz,modern_slang,His friends joked that he had no rizz.,,named_challenge
+B0485,juxtapose,advanced,The exhibit will juxtapose old and new photographs.,,curated
+B0486,take over,phrasal_verbs,A new manager will take over next week.,,curated
+B0487,buffer,computing,The buffer held data before writing it.,,curated
+B0488,leave no stone unturned,idioms,The team promised to leave no stone unturned.,,curated
+B0489,sanguine,advanced,"Despite setbacks, she remained sanguine.",,curated
+B0490,deterministic,computing,The test expects deterministic output from the parser.,,named_challenge
+B0491,allele,academic_scientific,The child inherited one allele from each parent.,,curated
+B0492,sunny,everyday,It was sunny all afternoon.,,curated
+B0493,lorry,regional,A lorry blocked the narrow street.,,curated
+B0494,ring,polysemous,Her ring slipped off her finger.,The phone began to ring.,curated
+B0495,species,academic_scientific,The survey found a new species of moth.,,curated
+B0496,salt,computing,The password hash included a random salt.,,curated
+B0497,ratio,modern_slang,His post got a ratio after the reply went viral.,,curated
+B0498,chair,everyday,Pull up a chair beside me.,,curated
+B0499,wētā,regional,A wētā hid under the log.,,curated
+B0500,took,inflected_irregular,She took the last seat.,,curated
