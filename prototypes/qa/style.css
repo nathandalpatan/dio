@@ -1,0 +1,9 @@
+body { padding: 0 20px 40px; background: #dbe2ea; }
+.qa-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 0; font: 13px/1.4 Inter, sans-serif; }
+.qa-toolbar nav { display: flex; flex-wrap: wrap; gap: 4px; }
+.qa-toolbar a { padding: 5px 8px; border: 1px solid #9da9b7; border-radius: 3px; color: #192533; background: #fff; text-decoration: none; }
+.qa-toolbar a[aria-current] { border-color: #002147; background: #002147; color: #fff; }
+.qa-toolbar a:focus-visible { outline-color: #002147; }
+.qa-note { color: #354556; font: 13px/1.4 Inter, sans-serif; }
+.qa-frame { max-width: 100%; margin-top: 18px; box-shadow: 0 12px 28px rgb(24 38 52 / .2); }
+.qa-frame :is(.popup, .settings) { height: 100%; }
