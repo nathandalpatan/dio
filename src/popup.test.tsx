@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppView, PopupView } from './main';
+import { AppView, PopupView, ago } from './main';
 
 const api = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -291,6 +291,17 @@ describe('popup', () => {
   });
 });
 
+describe('ago', () => {
+  const now = new Date(2026, 10, 27, 15, 0).getTime();
+  const at = (date: Date) => Math.floor(date.getTime() / 1000);
+  it('describes how long ago a word was saved', () => {
+    expect(ago(at(new Date(now - 2 * 60000)), now)).toBe('2 min ago');
+    expect(ago(at(new Date(now - 3 * 3600000)), now)).toBe('3 hr ago');
+    expect(ago(at(new Date(2026, 10, 26, 22, 0)), now)).toBe('Yesterday');
+    expect(ago(at(new Date(2026, 10, 20)), now)).not.toMatch(/ago|Yesterday/);
+  });
+});
+
 describe('settings', () => {
   const speechSettings = { ...settings, accent: 'us', ttsEnabled: true, voice: 'af_heart', speed: 1, volume: 1, readerEnabled: true, readerShortcut: 'Ctrl+Alt+R', readerMaxChars: 2000 };
   const voices = [{ id: 'af_heart', name: 'Heart', accent: 'us' }, { id: 'bf_emma', name: 'Emma', accent: 'uk' }];
@@ -317,7 +328,7 @@ describe('settings', () => {
 
   it('keeps a large saved-word collection searchable and initially bounded', async () => {
     window.history.replaceState(null, '', '/?settings');
-    const saved = Array.from({ length: 1284 }, (_, index) => `vocabulary ${index + 1}`);
+    const saved = Array.from({ length: 1284 }, (_, index) => ({ word: `vocabulary ${index + 1}`, added: 1_700_000_000 - index }));
     api.invoke.mockImplementation((command: string) => Promise.resolve(({ get_settings: speechSettings, saved_words: saved } as Record<string, unknown>)[command]));
     const { container } = render(<AppView />);
     fireEvent.click(await screen.findByRole('tab', { name: 'Saved words' }));

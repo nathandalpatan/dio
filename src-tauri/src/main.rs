@@ -525,7 +525,7 @@ fn save_word(app: AppHandle, save: bool) -> Result<(), String> {
     Ok(())
 }
 #[tauri::command]
-fn saved_words(app: AppHandle) -> Result<Vec<String>, String> {
+fn saved_words(app: AppHandle) -> Result<Vec<storage::SavedWord>, String> {
     shared(&app).storage.lock().unwrap().saved()
 }
 #[tauri::command]

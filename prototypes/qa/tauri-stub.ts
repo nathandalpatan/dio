@@ -57,7 +57,7 @@ export async function invoke<T>(command: string, args?: Record<string, unknown>)
       if (mode === 'error' && params.get('view') === 'settings' && ++settingsAttempts === 1) throw 'Settings could not be loaded.';
       if (mode === 'slow') await new Promise(resolve => setTimeout(resolve, 2500));
       return settings as T;
-    case 'saved_words': return words as T;
+    case 'saved_words': return words.map((word, index) => ({ word, added: Math.floor(Date.now() / 1000) - index * 900 })) as T;
     case 'tts_state': return speech as T;
     case 'tts_voices': return [{ id: 'af_heart', name: 'Heart', accent: 'us' }, { id: 'bf_emma', name: 'Emma', accent: 'uk' }] as T;
     case 'expand': state = { ...state, expanded: Boolean(args?.expanded) }; emit('popup-state', state); break;

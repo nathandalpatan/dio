@@ -54,7 +54,7 @@ h1, h2, p { margin-top: 0; }
 .phonetic-row { display: flex; align-items: center; gap: 7px; min-height: 29px; color: var(--muted); }
 .phonetic-row .part { font-family: var(--serif); font-style: italic; font-size: 12px; font-weight: 400; }
 .ipa { font-family: "Charis SIL", "Doulos SIL", "Gentium Plus", "Segoe UI", "Lucida Sans Unicode", var(--serif), serif; font-size: 14px; line-height: 1.3; letter-spacing: .01em; overflow-wrap: anywhere; }
-.accent { display: inline-block; margin-right: 7px; padding: 2px 5px; border-radius: 3px; background: var(--surface); color: var(--fg); font-family: var(--sans); font-size: 10px; font-weight: 600; line-height: 1.3; vertical-align: 1px; }
+.accent { display: inline-block; margin-right: 6px; color: var(--fg); font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: .04em; line-height: 1.3; vertical-align: 1px; }
 .approximate { margin-right: 2px; color: var(--muted); }
 .audio-button svg { width: 16px; height: 16px; }
 
@@ -166,10 +166,13 @@ h1, h2, p { margin-top: 0; }
 .model-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 53px; }
 .pane button { flex: none; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); padding: 6px 14px; color: var(--on-accent); font-size: 14px; }
 .pane button.secondary { background: none; color: var(--accent); }
-.saved-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.saved-list { margin: 0; padding: 0; list-style: none; }
 .settings .saved-search { width: min(100%, 320px); }
 .settings .saved-count { margin: 10px 0 16px; }
 .settings .saved-more { margin-top: 16px; }
-.pane .saved-list button { border-color: var(--rule); background: var(--surface); color: var(--fg); font-family: var(--serif); font-size: 16px; }
-.pane .saved-list button:hover { border-color: var(--accent); }
+.pane .saved-list button { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 45px; padding: 0 4px; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; background: none; color: var(--fg); text-align: left; }
+.saved-list svg { flex: none; width: 15px; height: 15px; color: var(--muted); }
+.saved-word { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--serif); font-size: 16px; }
+.saved-list time { flex: none; color: var(--muted); font-size: 12px; }
+.pane .saved-list button:hover .saved-word { color: var(--accent); }
 .pane .notice { margin: -14px 0 16px; }

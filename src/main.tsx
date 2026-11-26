@@ -21,6 +21,7 @@ type PopupState = { requestId: number; status: string; query: string; entries: E
 type Settings = { shortcut: string; keyboardEnabled: boolean; middleClick: boolean; theme: string; size: string; expanded: boolean; autoplay: boolean; startup: boolean; reducedMotion: boolean; accent?: string; ttsEnabled?: boolean; voice?: string; speed?: number; volume?: number; readerEnabled?: boolean; readerShortcut?: string; readerMaxChars?: number };
 type TtsState = { status: string; progress: number; message: string; owner: string };
 type Voice = { id: string; name: string; accent: string };
+type SavedWord = { word: string; added: number };
 
 const empty: PopupState = { requestId: 0, status: 'idle', query: '', entries: [], message: '', stale: false, expanded: false, direction: 'se', canBack: false, canForward: false, saved: false };
 const idleSpeech: TtsState = { status: 'disabled', progress: 0, message: '', owner: '' };
@@ -253,11 +254,24 @@ function Switch({ label, hint, checked, onChange }: { label: string; hint?: stri
   return <Row label={label} hint={hint}><input type="checkbox" role="switch" className="switch" checked={checked} onChange={e => onChange(e.target.checked)}/></Row>;
 }
 
+/** "2 min ago", "1 hr ago", "Yesterday", then a date, for a time in seconds since the epoch. */
+export function ago(seconds: number, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - seconds * 1000) / 60000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const added = new Date(seconds * 1000);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  if (added >= today) return `${Math.floor(minutes / 60)} hr ago`;
+  if (added.getTime() >= today.getTime() - 86400000) return 'Yesterday';
+  return added.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: added.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+}
+
 function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const persisted = useRef<Settings | null>(null);
-  const [words, setWords] = useState<string[]>([]);
+  const [words, setWords] = useState<SavedWord[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [capturing, setCapturing] = useState<'' | 'shortcut' | 'readerShortcut'>('');
@@ -274,12 +288,12 @@ function SettingsView() {
   };
   useEffect(() => {
     loadSettings();
-    void call<string[]>('saved_words').then(setWords).catch(e => setError(asError(e)));
+    void call<SavedWord[]>('saved_words').then(setWords).catch(e => setError(asError(e)));
     void call<string | null>('shortcut_error').then(value => { if (value) setError(value); });
     void call<string | null>('hook_error').then(value => { if (value) setError(value); });
     void call<TtsState>('tts_state').then(value => { if (value) setSpeech(value); }).catch(() => {});
     void call<Voice[]>('tts_voices').then(value => setVoices(value || [])).catch(() => {});
-    const subscription = listen('saved-changed', () => { void call<string[]>('saved_words').then(setWords).catch(e => setError(asError(e))); });
+    const subscription = listen('saved-changed', () => { void call<SavedWord[]>('saved_words').then(setWords).catch(e => setError(asError(e))); });
     const speechEvents = listen<TtsState>('tts-state', event => setSpeech(event.payload));
     const preferences = listen<Settings>('settings-changed', event => accept(event.payload));
     return () => { void subscription.then(unlisten => unlisten()); void speechEvents.then(unlisten => unlisten()); void preferences.then(unlisten => unlisten()); };
@@ -316,7 +330,7 @@ function SettingsView() {
     {!loadingSettings && <button onClick={loadSettings}>Retry loading settings</button>}
   </section></main>;
   const current = sections.find(item => item.id === section)!;
-  const matchingWords = words.filter(word => word.toLocaleLowerCase().includes(savedFilter.trim().toLocaleLowerCase()));
+  const matchingWords = words.filter(({ word }) => word.toLocaleLowerCase().includes(savedFilter.trim().toLocaleLowerCase()));
   const modelStatus = speech.status === 'downloading' ? `Downloading… ${Math.round(speech.progress * 100)}%` : speech.status === 'notInstalled' ? speech.message || 'Voice model not installed (about 95 MB).' : speech.status === 'disabled' ? 'Speech is turned off.' : speech.status === 'error' ? speech.message : 'Voice model installed. Speech runs on this computer.';
   const body: Record<Section, React.ReactNode> = {
     general: <>
@@ -355,7 +369,7 @@ function SettingsView() {
     saved: words.length ? <>
       <input className="field saved-search" type="search" aria-label="Search saved words" placeholder="Search saved words" value={savedFilter} onChange={e => { setSavedFilter(e.target.value); setSavedShown(60); }}/>
       <p className="hint saved-count" role="status">Showing {Math.min(matchingWords.length, savedShown).toLocaleString()} of {matchingWords.length.toLocaleString()} matching words</p>
-      {matchingWords.length ? <div className="saved-list">{matchingWords.slice(0, savedShown).map(word => <button key={word} onClick={() => void call('open_saved', { word }).catch(e => setError(asError(e)))}>{word}</button>)}</div> : <p className="hint">No saved words match your search.</p>}
+      {matchingWords.length ? <ul className="saved-list">{matchingWords.slice(0, savedShown).map(({ word, added }) => <li key={word}><button aria-label={word} onClick={() => void call('open_saved', { word }).catch(e => setError(asError(e)))}><Icon name="history"/><span className="saved-word">{word}</span><time dateTime={new Date(added * 1000).toISOString()}>{ago(added)}</time></button></li>)}</ul> : <p className="hint">No saved words match your search.</p>}
       {matchingWords.length > savedShown && <button className="secondary saved-more" onClick={() => setSavedShown(count => count + 60)}>Show more saved words</button>}
     </> : <p className="hint">No saved words yet.</p>,
     data: <>

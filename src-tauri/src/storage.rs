@@ -17,6 +17,12 @@ pub struct Storage {
     db: Connection,
     settings_path: PathBuf,
 }
+#[derive(serde::Serialize, Debug, PartialEq)]
+pub struct SavedWord {
+    pub word: String,
+    /// Seconds since the Unix epoch.
+    pub added: i64,
+}
 pub struct Cached {
     pub entries: Vec<Entry>,
     pub fresh: bool,
@@ -97,15 +103,20 @@ impl Storage {
         tx.execute("DELETE FROM cache WHERE word IN (SELECT word FROM cache ORDER BY used DESC, word LIMIT -1 OFFSET 1000)", []).map_err(|e| e.to_string())?;
         tx.commit().map_err(|e| e.to_string())
     }
-    pub fn saved(&self) -> Result<Vec<String>, String> {
+    pub fn saved(&self) -> Result<Vec<SavedWord>, String> {
         let mut statement = self
             .db
-            .prepare("SELECT word FROM saved ORDER BY added DESC, word")
+            .prepare("SELECT word, added FROM saved ORDER BY added DESC, word")
             .map_err(|e| e.to_string())?;
         let rows = statement
-            .query_map([], |r| r.get(0))
+            .query_map([], |r| {
+                Ok(SavedWord {
+                    word: r.get(0)?,
+                    added: r.get(1)?,
+                })
+            })
             .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<String>, _>>()
+        rows.collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())
     }
     pub fn save(&self, word: &str, entries: &[Entry], save: bool) -> Result<(), String> {
@@ -169,7 +180,10 @@ mod tests {
         store.save("Test", &entries, true).unwrap();
         store.clear().unwrap();
         assert!(store.get("test", 11).unwrap().is_none());
-        assert_eq!(store.saved().unwrap(), vec!["test"]);
+        let saved = store.saved().unwrap();
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].word, "test");
+        assert!(saved[0].added > 0);
         assert!(store.saved_entry("test").unwrap().is_some());
     }
     #[test]
