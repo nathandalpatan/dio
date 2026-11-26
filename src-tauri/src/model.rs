@@ -148,6 +148,14 @@ pub struct Selection {
     pub text: String,
     pub bounds: Option<Rect>,
 }
+/// One WordNet sense with the other words that share it.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SynonymSense {
+    pub part_of_speech: String,
+    pub definition: String,
+    pub synonyms: Vec<String>,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PopupState {
@@ -163,6 +171,7 @@ pub struct PopupState {
     pub can_forward: bool,
     pub saved: bool,
     pub pronunciations: Vec<Pronunciation>,
+    pub synonym_senses: Vec<SynonymSense>,
     pub reading: String,
 }
 impl Default for PopupState {
@@ -180,6 +189,7 @@ impl Default for PopupState {
             can_forward: false,
             saved: false,
             pronunciations: vec![],
+            synonym_senses: vec![],
             reading: String::new(),
         }
     }

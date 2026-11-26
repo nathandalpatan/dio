@@ -1,4 +1,4 @@
-use crate::model::{Definition, Entry, License, Meaning};
+use crate::model::{Definition, Entry, License, Meaning, SynonymSense};
 use rusqlite::{params, Connection, OpenFlags};
 use std::path::Path;
 
@@ -102,6 +102,28 @@ impl LocalDictionary {
             }
         }
         Ok(self.lookup_acronym(word)?.map(|entry| vec![entry]))
+    }
+
+    /// The WordNet senses of `word` that have synonyms, in WordNet's sense order.
+    pub fn synonym_senses(&self, word: &str) -> Result<Vec<SynonymSense>, String> {
+        Ok(self
+            .words(word)?
+            .into_iter()
+            .flatten()
+            .flat_map(|entry| entry.meanings)
+            .flat_map(|meaning| {
+                let part_of_speech = meaning.part_of_speech;
+                meaning
+                    .definitions
+                    .into_iter()
+                    .filter(|definition| !definition.synonyms.is_empty())
+                    .map(move |definition| SynonymSense {
+                        part_of_speech: part_of_speech.clone(),
+                        definition: definition.definition,
+                        synonyms: definition.synonyms,
+                    })
+            })
+            .collect())
     }
 
     fn lookup_acronym(&self, word: &str) -> Result<Option<Entry>, String> {
@@ -252,6 +274,24 @@ fn without_grammar_notes(definition: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn synonyms_are_grouped_by_sense() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/english.sqlite3");
+        let acronyms = Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/acronyms.sqlite3");
+        let dictionary = LocalDictionary::open(&path, &acronyms).unwrap();
+        let senses = dictionary.synonym_senses("entries").unwrap();
+        assert!(senses.iter().all(|sense| !sense.synonyms.is_empty()));
+        let entering = senses
+            .iter()
+            .find(|sense| sense.definition == "the act of entering")
+            .unwrap();
+        assert_eq!(entering.part_of_speech, "noun");
+        assert!(entering.synonyms.contains(&"ingress".to_string()));
+        assert!(!senses
+            .iter()
+            .any(|sense| sense.definition == "an item inserted in a written record"));
+    }
 
     #[test]
     fn bundled_dictionary_defines_words_offline() {

@@ -196,6 +196,7 @@ async fn resolve(app: AppHandle, word: String, id: u64) {
     drop(popup);
     publish(&app);
     load_pronunciations(&app, id);
+    load_synonyms(&app, id);
 }
 
 /// Resolves IPA after the definition is visible so pronunciation data never delays or blocks
@@ -221,6 +222,40 @@ fn load_pronunciations(app: &AppHandle, id: u64) {
             .lock()
             .unwrap()
             .update_if_current(id, |state| state.pronunciations = found)
+        {
+            publish(&app);
+        }
+    });
+}
+
+/// Groups synonyms by WordNet sense for every lookup, since online entries rarely have their own.
+fn load_synonyms(app: &AppHandle, id: u64) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let word = {
+            let popup = shared(&app).popup.lock().unwrap();
+            if popup.state.request_id != id || popup.state.status != "ready" {
+                return;
+            }
+            entry_word(&popup.state.query, &popup.state.entries).to_owned()
+        };
+        let senses = match shared(&app)
+            .local_dictionary
+            .lock()
+            .unwrap()
+            .synonym_senses(&word)
+        {
+            Ok(senses) => senses,
+            Err(error) => {
+                eprintln!("DIO local dictionary failed: {error}");
+                return;
+            }
+        };
+        if shared(&app)
+            .popup
+            .lock()
+            .unwrap()
+            .update_if_current(id, |state| state.synonym_senses = senses)
         {
             publish(&app);
         }
@@ -517,6 +552,7 @@ fn open_saved(app: AppHandle, word: String) -> Result<(), String> {
     drop(popup);
     publish(&app);
     load_pronunciations(&app, id);
+    load_synonyms(&app, id);
     popup::show(&app)
 }
 #[tauri::command]
