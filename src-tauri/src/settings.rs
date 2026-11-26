@@ -110,6 +110,9 @@ pub fn update(app: &AppHandle, next: Settings) -> Result<(), String> {
     }
     shared(app).tts.set_volume(next.volume);
     shared(app).tts.set_enabled(next.tts_enabled);
+    if next.tts_enabled && !current.tts_enabled {
+        shared(app).tts.warm();
+    }
     *shared(app).settings.lock().unwrap() = next;
     app.state::<crate::native::Hooks>().middle.store(
         shared(app).settings.lock().unwrap().middle_click,

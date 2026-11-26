@@ -4,6 +4,7 @@ pub mod model_store;
 
 use serde::Serialize;
 use std::any::Any;
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
@@ -130,13 +131,36 @@ struct Job {
     request: Request,
 }
 
+/// Audio to synthesize ahead of time so a later request for it plays at once. Empty text only
+/// loads the model, which otherwise adds most of a second to the first request.
+pub struct Prepare {
+    pub text: String,
+    pub voice: String,
+    pub british: bool,
+    pub speed: f32,
+}
+
+/// Work for the speech thread. A speech job always runs before preparation.
+#[derive(Default)]
+struct Queue {
+    job: Option<Job>,
+    prepare: Option<Prepare>,
+}
+
+type Key = (String, String, bool, u32);
+fn key(text: &str, voice: &str, british: bool, speed: f32) -> Key {
+    (text.into(), voice.into(), british, speed.to_bits())
+}
+/// Prepared sentences kept for reuse, oldest dropped first.
+const PREPARED: usize = 16;
+
 const LOOKAHEAD: usize = 2;
 const IDLE_UNLOAD: Duration = Duration::from_secs(10 * 60);
 
 struct Shared {
     state: Mutex<TtsState>,
     generation: AtomicU64,
-    pending: Mutex<Option<Job>>,
+    pending: Mutex<Queue>,
     wake: Condvar,
     output: Mutex<Option<Arc<dyn Output>>>,
     paused: AtomicBool,
@@ -211,7 +235,7 @@ impl Tts {
         let shared = Arc::new(Shared {
             state: Mutex::new(TtsState::default()),
             generation: AtomicU64::new(0),
-            pending: Mutex::new(None),
+            pending: Mutex::new(Queue::default()),
             wake: Condvar::new(),
             output: Mutex::new(None),
             paused: AtomicBool::new(false),
@@ -226,22 +250,33 @@ impl Tts {
             .name("dio-tts".into())
             .spawn(move || {
                 let mut backend: Option<Box<dyn Backend>> = None;
+                let mut prepared: VecDeque<(Key, Vec<f32>)> = VecDeque::new();
                 loop {
-                    let job = {
+                    let (job, prepare) = {
                         let pending = worker.pending.lock().unwrap();
                         let (mut pending, timeout) = worker
                             .wake
-                            .wait_timeout_while(pending, IDLE_UNLOAD, |job| {
-                                job.is_none() && !worker.unload.load(Ordering::Acquire)
+                            .wait_timeout_while(pending, IDLE_UNLOAD, |queue| {
+                                queue.job.is_none()
+                                    && queue.prepare.is_none()
+                                    && !worker.unload.load(Ordering::Acquire)
                             })
                             .unwrap();
                         if timeout.timed_out() || worker.unload.swap(false, Ordering::AcqRel) {
                             backend = None;
                         }
-                        pending.take()
+                        let job = pending.job.take();
+                        let prepare = if job.is_none() {
+                            pending.prepare.take()
+                        } else {
+                            None
+                        };
+                        (job, prepare)
                     };
                     if let Some(job) = job {
-                        run(&worker, &mut backend, &mut load, &mut open, job);
+                        run(&worker, &mut backend, &mut load, &mut open, &prepared, job);
+                    } else if let Some(prepare) = prepare {
+                        prepare_audio(&mut backend, &mut load, &mut prepared, prepare);
                     }
                 }
             })
@@ -268,7 +303,7 @@ impl Tts {
         let generation = self.interrupt();
         self.shared
             .set_status("loading", &request.owner, String::new());
-        *self.shared.pending.lock().unwrap() = Some(Job {
+        self.shared.pending.lock().unwrap().job = Some(Job {
             generation,
             request,
         });
@@ -276,10 +311,31 @@ impl Tts {
         Ok(())
     }
 
+    /// Synthesizes `request` in the background so speaking it later starts at once. Does
+    /// nothing when speech is unavailable, and never changes the reported state.
+    pub fn prepare(&self, request: Prepare) {
+        if self.available().is_err() {
+            return;
+        }
+        self.shared.pending.lock().unwrap().prepare = Some(request);
+        self.shared.wake.notify_one();
+    }
+
+    /// Loads the voice model ahead of the first request, if it is not loaded already.
+    pub fn warm(&self) {
+        let voice = &VOICES[0];
+        self.prepare(Prepare {
+            text: String::new(),
+            voice: voice.id.into(),
+            british: voice.accent == "uk",
+            speed: 1.0,
+        });
+    }
+
     fn interrupt(&self) -> u64 {
         let generation = self.shared.generation.fetch_add(1, Ordering::AcqRel) + 1;
         self.shared.paused.store(false, Ordering::Release);
-        self.shared.pending.lock().unwrap().take();
+        self.shared.pending.lock().unwrap().job.take();
         if let Some(output) = self.shared.output.lock().unwrap().as_ref() {
             output.stop();
         }
@@ -398,11 +454,44 @@ pub fn split_text(text: &str) -> Vec<String> {
         .collect()
 }
 
+fn prepare_audio(
+    backend: &mut Option<Box<dyn Backend>>,
+    load: &mut LoadBackend,
+    prepared: &mut VecDeque<(Key, Vec<f32>)>,
+    request: Prepare,
+) {
+    if backend.is_none() {
+        // A failure is reported by the next real request, which loads again.
+        match load() {
+            Ok(engine) => *backend = Some(engine),
+            Err(_) => return,
+        }
+    }
+    let Some(engine) = backend.as_mut() else {
+        return;
+    };
+    for chunk in split_text(&request.text) {
+        let id = key(&chunk, &request.voice, request.british, request.speed);
+        if prepared.iter().any(|(existing, _)| *existing == id) {
+            continue;
+        }
+        let Ok(samples) = engine.synthesize(&chunk, &request.voice, request.british, request.speed)
+        else {
+            return;
+        };
+        if prepared.len() >= PREPARED {
+            prepared.pop_front();
+        }
+        prepared.push_back((id, samples));
+    }
+}
+
 fn run(
     shared: &Shared,
     backend: &mut Option<Box<dyn Backend>>,
     load: &mut LoadBackend,
     open: &mut OpenOutput,
+    prepared: &VecDeque<(Key, Vec<f32>)>,
     job: Job,
 ) {
     let Job {
@@ -459,7 +548,12 @@ fn run(
         if !shared.current(generation) {
             break;
         }
-        match engine.synthesize(&chunk, &request.voice, request.british, request.speed) {
+        let id = key(&chunk, &request.voice, request.british, request.speed);
+        let ready = prepared.iter().find(|(existing, _)| *existing == id);
+        match ready.map_or_else(
+            || engine.synthesize(&chunk, &request.voice, request.british, request.speed),
+            |(_, samples)| Ok(samples.clone()),
+        ) {
             Ok(samples) if samples.is_empty() => {}
             Ok(samples) => {
                 if !shared.current(generation) {
@@ -749,6 +843,54 @@ mod tests {
             wait_for(&broken, "error").message,
             "The audio device stopped responding."
         );
+    }
+
+    #[test]
+    fn prepared_words_play_without_synthesizing_again() {
+        let harness = harness(None, false, 0);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        let calls = |count: usize| {
+            while harness.calls.lock().unwrap().len() < count {
+                assert!(std::time::Instant::now() < deadline, "never prepared");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        harness.tts.warm();
+        while harness.loads.load(Ordering::Acquire) == 0 {
+            assert!(std::time::Instant::now() < deadline, "never loaded");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        harness.tts.warm();
+        harness.tts.prepare(Prepare {
+            text: "serendipity".into(),
+            voice: "af_heart".into(),
+            british: false,
+            speed: 1.25,
+        });
+        calls(1);
+        assert_eq!(harness.tts.state().status, "ready");
+        assert!(
+            harness.states.try_recv().is_err(),
+            "preparing changed the state"
+        );
+        harness.tts.speak(request("serendipity", "word")).unwrap();
+        wait_for(&harness, "playing");
+        wait_for(&harness, "ready");
+        assert_eq!(
+            *harness.calls.lock().unwrap(),
+            ["af_heart/false/1.25:serendipity"]
+        );
+        assert_eq!(harness.loads.load(Ordering::Acquire), 1);
+        assert_eq!(harness.output.played.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn preparing_is_skipped_when_speech_is_unavailable() {
+        let harness = harness(None, false, 0);
+        harness.tts.set_enabled(false);
+        harness.tts.warm();
+        std::thread::sleep(Duration::from_millis(50));
+        assert_eq!(harness.loads.load(Ordering::Acquire), 0);
     }
 
     #[test]

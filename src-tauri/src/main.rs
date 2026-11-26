@@ -56,6 +56,8 @@ fn publish(app: &AppHandle) {
 
 fn begin(app: &AppHandle, word: String, history: bool) -> u64 {
     stop_popup_speech(app);
+    // The model unloads after a while unused; start loading it while the definition is found.
+    shared(app).tts.warm();
     let default_expanded = shared(app).settings.lock().unwrap().expanded;
     let preserve_expansion = app
         .get_webview_window("popup")
@@ -123,80 +125,114 @@ async fn resolve(app: AppHandle, word: String, id: u64) {
             }
         }
     };
-    let cache_hit = cached.as_ref().is_some_and(|item| item.fresh);
-    let fetched = if let Some(entries) = local {
-        Ok(entries)
-    } else if cache_hit {
-        Ok(cached.as_ref().unwrap().entries.clone())
+    if let Some(entries) = local {
+        show_ready(&app, id, &word, entries, false);
+        return;
+    }
+    let cached = match cached {
+        Some(item) if item.fresh => {
+            show_ready(&app, id, &word, item.entries, false);
+            return;
+        }
+        other => other.map(|item| item.entries),
+    };
+    // Show an older copy or the bundled entry straight away, then replace it with the online
+    // entry when that arrives, so the network never holds up the first definition.
+    let bundled = if cached.is_some() {
+        None
     } else {
-        shared(&app).dictionary.lookup(&word).await
-    };
-    let mut bundled = false;
-    let (entries, stale) = match fetched {
-        Ok(entries) => (entries, false),
-        Err(error) => match cached {
-            Some(item) => (item.entries, true),
-            None => {
-                let fallback = shared(&app).local_dictionary.lock().unwrap().words(&word);
-                match fallback {
-                    Ok(Some(entries)) => {
-                        bundled = true;
-                        (entries, false)
-                    }
-                    Ok(None) => {
-                        fail(&app, id, error.kind, error.message);
-                        return;
-                    }
-                    Err(local_error) => {
-                        eprintln!("DIO local dictionary failed: {local_error}");
-                        fail(&app, id, error.kind, error.message);
-                        return;
-                    }
-                }
+        match shared(&app).local_dictionary.lock().unwrap().words(&word) {
+            Ok(entries) => entries,
+            Err(error) => {
+                eprintln!("DIO local dictionary failed: {error}");
+                None
             }
-        },
+        }
     };
-    if !stale && !cache_hit && !local_hit && !bundled {
-        if let Err(error) = shared(&app)
-            .storage
-            .lock()
-            .unwrap()
-            .put(&word, &entries, now())
-        {
-            fail(&app, id, "storage", error);
+    if let Some(entries) = cached.as_ref().or(bundled.as_ref()) {
+        if !show_ready(&app, id, &word, entries.clone(), false) {
             return;
         }
     }
-    let saved = match shared(&app)
+    match shared(&app).dictionary.lookup(&word).await {
+        Ok(entries) => {
+            if let Err(error) = shared(&app)
+                .storage
+                .lock()
+                .unwrap()
+                .put(&word, &entries, now())
+            {
+                fail(&app, id, "storage", error);
+                return;
+            }
+            show_ready(&app, id, &word, entries, false);
+        }
+        Err(_) if bundled.is_some() => {}
+        Err(_) if cached.is_some() => {
+            show_ready(&app, id, &word, cached.unwrap(), true);
+        }
+        Err(error) => fail(&app, id, error.kind, error.message),
+    }
+}
+
+/// Shows `entries` as the definition for request `id`, unless a newer lookup replaced it.
+/// Returns whether the request is still current.
+fn show_ready(app: &AppHandle, id: u64, word: &str, entries: Vec<Entry>, stale: bool) -> bool {
+    let saved = match shared(app)
         .storage
         .lock()
         .unwrap()
-        .saved_entry(entry_word(&word, &entries))
+        .saved_entry(entry_word(word, &entries))
     {
         Ok(value) => value.is_some(),
         Err(error) => {
-            fail(&app, id, "storage", error);
-            return;
+            fail(app, id, "storage", error);
+            return false;
         }
     };
-    let mut popup = shared(&app).popup.lock().unwrap();
-    if !popup.update_if_current(id, |state| {
-        state.status = "ready".into();
-        state.entries = entries;
-        state.stale = stale;
-        state.saved = saved;
-        state.message = if stale {
-            "Offline copy. The dictionary could not refresh this entry.".into()
-        } else {
-            String::new()
-        };
-    }) {
-        return;
+    if !shared(app)
+        .popup
+        .lock()
+        .unwrap()
+        .update_if_current(id, |state| {
+            state.status = "ready".into();
+            state.entries = entries;
+            state.stale = stale;
+            state.saved = saved;
+            state.message = if stale {
+                "Offline copy. The dictionary could not refresh this entry.".into()
+            } else {
+                String::new()
+            };
+        })
+    {
+        return false;
     }
-    drop(popup);
-    publish(&app);
-    load_pronunciations(&app, id);
-    load_synonyms(&app, id);
+    publish(app);
+    load_pronunciations(app, id);
+    load_synonyms(app, id);
+    prepare_word(
+        app,
+        entry_word(word, &shared(app).popup.lock().unwrap().state.entries).to_owned(),
+    );
+    true
+}
+
+/// The voice a looked-up word is pronounced in: the chosen voice, or one in the preferred accent.
+fn word_voice(settings: &Settings) -> &'static tts::VoiceInfo {
+    tts::voice_for_accent(&settings.voice, &settings.accent)
+}
+
+/// Synthesizes the word in the background so pressing the speaker plays it at once.
+fn prepare_word(app: &AppHandle, word: String) {
+    let settings = shared(app).settings.lock().unwrap().clone();
+    let voice = word_voice(&settings);
+    shared(app).tts.prepare(tts::Prepare {
+        text: word,
+        voice: voice.id.into(),
+        british: voice.accent == "uk",
+        speed: settings.speed,
+    });
 }
 
 /// Resolves IPA after the definition is visible so pronunciation data never delays or blocks
@@ -620,7 +656,7 @@ fn tts_speak(app: AppHandle, text: String, owner: String) -> Result<(), String> 
         },
     )?;
     let voice = if owner == "word" {
-        tts::voice_for_accent(&settings.voice, &settings.accent)
+        word_voice(&settings)
     } else {
         tts::voice(&settings.voice).unwrap_or(&tts::VOICES[0])
     };
@@ -683,6 +719,7 @@ async fn tts_install(app: AppHandle) -> Result<(), String> {
     match result {
         Ok(()) => {
             state.tts.set_installed(true, String::new());
+            state.tts.warm();
             Ok(())
         }
         Err(error) => {
@@ -843,6 +880,7 @@ fn main() {
                 model_dir,
                 install: Mutex::new(None),
             });
+            shared(app.handle()).tts.warm();
             app.manage(Hooks::new(app.handle().clone(), settings.middle_click));
             let mut errors: Vec<String> = settings::bindings(&settings)
                 .into_iter()
