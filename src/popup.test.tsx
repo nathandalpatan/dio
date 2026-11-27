@@ -16,6 +16,7 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async (name: string, lis
 const settings = { shortcut: 'Ctrl+Alt+D', keyboardEnabled: true, middleClick: false, theme: 'system', size: 'standard', expanded: false, autoplay: false, startup: false, reducedMotion: true };
 const initial = { requestId: 0, status: 'idle', query: '', entries: [], message: '', stale: false, expanded: false, direction: 'se', canBack: false, canForward: false, saved: false };
 const entry = { word: 'serendipity', phonetic: '', phonetics: [], meanings: [{ partOfSpeech: 'noun', definitions: [{ definition: 'A happy discovery.', example: '', synonyms: [], antonyms: [] }], synonyms: ['luck'], antonyms: [] }], origin: '', sourceUrls: [] };
+const luck = [{ partOfSpeech: 'noun', definition: 'an unknown force that brings good fortune', synonyms: ['luck'] }];
 const send = (payload: object) => act(() => api.listeners['popup-state']({ payload: { ...initial, ...payload } }));
 
 beforeEach(() => {
@@ -61,7 +62,7 @@ describe('popup', () => {
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
     const definitions = Array.from({ length: 7 }, (_, i) => ({ definition: `Sense ${i + 1}.`, example: '', synonyms: [], antonyms: [] }));
     const long = { ...entry, meanings: [{ partOfSpeech: 'noun', definitions, synonyms: ['a11y', 'usability'], antonyms: [] }] };
-    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [long], expanded: true });
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [long], expanded: true, synonymSenses: [{ partOfSpeech: 'noun', definition: 'Sense 1.', synonyms: ['a11y', 'usability'] }] });
     expect(screen.getByText('Sense 5.')).toBeTruthy();
     expect(screen.queryByText('Sense 6.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Show all 7 meanings' }));
@@ -74,7 +75,7 @@ describe('popup', () => {
   it('hides absent fields and follows related words', async () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
-    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry], expanded: true });
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry], expanded: true, synonymSenses: luck });
     expect(screen.getByText('serendipity')).toBeTruthy();
     expect(screen.queryByText('Origin')).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'Synonyms' }));
@@ -99,15 +100,32 @@ describe('popup', () => {
     expect(screen.getByText('League of Legends: a video game.')).toBeTruthy();
   });
 
+  it('shows synonyms of the shown sense under the definition', async () => {
+    render(<PopupView />);
+    await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
+    const sense = { ...entry.meanings[0].definitions[0], synonyms: ['chance', 'b2b', 'fluke', 'fortune', 'luck'] };
+    const sensed = { ...entry, meanings: [{ ...entry.meanings[0], definitions: [sense] }] };
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [sensed], synonymSenses: luck });
+    expect(['chance', 'fluke', 'fortune'].map(name => screen.getByRole('button', { name }))).toHaveLength(3);
+    expect(screen.queryByRole('button', { name: 'b2b' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'luck' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'View all synonyms →' }));
+    expect(screen.getByRole('tab', { name: 'Synonyms' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('button', { name: 'luck' })).toBeTruthy();
+  });
+
   it('shows entry sections as tabs in the compact view', async () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
     send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry] });
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Definition']);
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [entry], synonymSenses: luck });
     expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Definition', 'Synonyms']);
     expect(screen.getByText('A happy discovery.')).toBeTruthy();
     expect(screen.queryByText('Example')).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: 'Synonyms' }));
-    expect(screen.getByText('Alternatives based on this meaning')).toBeTruthy();
+    expect(screen.getByText('Grouped by meaning')).toBeTruthy();
+    expect(screen.getByText('an unknown force that brings good fortune')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'luck' }));
     await waitFor(() => expect(api.invoke).toHaveBeenCalledWith('lookup', { word: 'luck' }));
     const withExample = { ...entry, origin: 'Coined by Horace Walpole.', meanings: [{ ...entry.meanings[0], definitions: [{ ...entry.meanings[0].definitions[0], example: 'A fortunate find.' }] }] };
@@ -249,7 +267,7 @@ describe('popup', () => {
     render(<PopupView />);
     await waitFor(() => expect(api.listeners['popup-state']).toBeDefined());
     const opposed = { ...entry, meanings: [{ ...entry.meanings[0], antonyms: ['misfortune'] }] };
-    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [opposed], expanded: true });
+    send({ requestId: 1, status: 'ready', query: 'serendipity', entries: [opposed], expanded: true, synonymSenses: luck });
     expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Definition', 'Synonyms']);
     expect(screen.getByText('A happy discovery.')).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: 'Synonyms' }));
