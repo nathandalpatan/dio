@@ -1,0 +1,74 @@
+name: Release
+
+# Pushing a tag such as v0.2.0 validates, tests, builds, signs and publishes that version.
+# Tags with a suffix, such as v0.2.0-rc.1, publish a prerelease, which installed copies of DIO and
+# the website's download link ignore, so it can be tested before a real release.
+#
+# The signing key lives only in the `release` environment's secrets. Give that environment a
+# required reviewer so every publish waits for approval.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+
+      - name: Check the tag, versions and changelog
+        id: meta
+        shell: bash
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "Release tags must point at a commit on main."; exit 1; }
+          version="${GITHUB_REF_NAME#v}"
+          node tools/changelog.mjs check "$version" --release
+          node tools/changelog.mjs notes "$version" > "$RUNNER_TEMP/notes.md"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+          { echo 'notes<<DIO_NOTES_END'; cat "$RUNNER_TEMP/notes.md"; echo 'DIO_NOTES_END'; } >> "$GITHUB_OUTPUT"
+
+      - run: pnpm build
+      - run: pnpm test
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Build, sign and publish
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: DIO ${{ steps.meta.outputs.version }}
+          # Also becomes the notes in latest.json, which DIO shows before and after updating.
+          releaseBody: ${{ steps.meta.outputs.notes }}
+          prerelease: ${{ steps.meta.outputs.prerelease }}
+          args: --config src-tauri/tauri.release.conf.json
+
+      - name: Publish DIO-setup.exe for the website's download link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp "src-tauri/target/release/bundle/nsis/DIO_${{ steps.meta.outputs.version }}_x64-setup.exe" DIO-setup.exe
+          gh release upload "$GITHUB_REF_NAME" DIO-setup.exe --clobber

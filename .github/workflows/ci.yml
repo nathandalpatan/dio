@@ -1,0 +1,38 @@
+name: CI
+
+# Validates and tests every push and pull request to main. Nothing is published from here;
+# releases come only from version tags (release.yml).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Check versions and changelog
+        shell: bash
+        run: node tools/changelog.mjs check "$(node tools/changelog.mjs version)"
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm site:build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
