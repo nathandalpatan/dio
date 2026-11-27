@@ -205,3 +205,34 @@ h1, h2, p { margin-top: 0; }
 /* A piece of the popup at the chosen text size, drawn with the popup's own classes. */
 .popup-sample { margin: 6px 0 12px; padding: 12px 14px 0; border: 1px solid var(--rule); border-radius: 7px; color: var(--fg); font-size: var(--fs-body); }
 .popup-sample .tab-panel p { margin-bottom: 0; }
+.update-summary { display: flex; flex-direction: column; gap: 4px; }
+.update-summary strong { font-size: 16px; font-weight: 600; }
+.update-line { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.update-line svg { width: 15px; height: 15px; }
+.update-panel { margin: 4px 0 12px; padding: 16px 18px; border: 1px solid var(--rule); border-radius: 6px; font-size: 14px; }
+.update-head { display: flex; align-items: flex-start; gap: 12px; }
+.update-head > svg { flex: none; margin-top: 1px; color: var(--accent); }
+.update-panel.failed .update-head > svg { color: var(--error); }
+.update-head div { display: flex; flex: 1; flex-direction: column; gap: 2px; }
+.update-head strong { font-size: 15px; font-weight: 600; }
+.update-head span, .update-percent { color: var(--muted); font-size: 13px; }
+.update-percent { font-variant-numeric: tabular-nums; }
+.update-panel h2 { margin: 16px 0 6px; font-size: 14px; font-weight: 600; }
+.update-panel ul { margin: 0; padding-left: 20px; list-style: disc; line-height: 1.6; }
+.update-panel p { margin: 12px 0 0; }
+.update-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.progress { height: 4px; margin: 14px 0 0; overflow: hidden; border-radius: 2px; background: var(--rule); }
+.progress span { display: block; height: 100%; background: var(--accent); }
+.pane button.text-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; padding: 0; border: 0; background: none; color: var(--accent); font-size: 13px; text-decoration: underline; text-underline-offset: 2px; }
+.text-link svg { width: 13px; height: 13px; }
+.radio-group { margin: 0; padding: 0; border: 0; }
+.radio-group legend { padding: 10px 0 6px; font-weight: 600; }
+.radio-row { display: flex; align-items: flex-start; gap: 12px; padding: 7px 0; cursor: pointer; }
+.radio-row input { flex: none; width: 17px; height: 17px; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+.theme-dark .radio-row input { color-scheme: dark; }
+@media (prefers-color-scheme: dark) { .theme-system .radio-row input { color-scheme: dark; } }
+.radio-group .hint { margin: 8px 0 0; }
+.pane button.link-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 45px; padding: 0 4px; border: 0; border-radius: 0; background: none; color: var(--fg); text-align: left; }
+.link-row span { flex: 1; }
+.link-row svg { width: 16px; height: 16px; color: var(--muted); }
+.pane button.link-row:hover span { color: var(--accent); }

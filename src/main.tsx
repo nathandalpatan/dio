@@ -22,10 +22,14 @@ type Entry = { word: string; phonetic: string; phonetics: Phonetic[]; meanings: 
 type Pronunciation = { ipa: string; dialect: string; source: string };
 type SynonymSense = { partOfSpeech: string; definition: string; synonyms: string[] };
 type PopupState = { requestId: number; status: string; query: string; entries: Entry[]; message: string; stale: boolean; expanded: boolean; direction: string; canBack: boolean; canForward: boolean; saved: boolean; pronunciations?: Pronunciation[]; synonymSenses?: SynonymSense[]; reading?: string };
-type Settings = { shortcut: string; keyboardEnabled: boolean; middleClick: boolean; theme: string; size: string; textSize?: string; expanded: boolean; autoplay: boolean; startup: boolean; reducedMotion: boolean; accent?: string; ttsEnabled?: boolean; voice?: string; speed?: number; volume?: number; readerEnabled?: boolean; readerShortcut?: string; readerMaxChars?: number; popupCustom?: [number, number] | null; expandedCustom?: [number, number] | null };
+type Settings = { shortcut: string; keyboardEnabled: boolean; middleClick: boolean; theme: string; size: string; textSize?: string; expanded: boolean; autoplay: boolean; startup: boolean; reducedMotion: boolean; accent?: string; ttsEnabled?: boolean; voice?: string; speed?: number; volume?: number; readerEnabled?: boolean; readerShortcut?: string; readerMaxChars?: number; updateMode?: UpdateMode; popupCustom?: [number, number] | null; expandedCustom?: [number, number] | null };
 type TtsState = { status: string; progress: number; message: string; owner: string };
 type Voice = { id: string; name: string; accent: string };
 type SavedWord = { word: string; added: number };
+type UpdateMode = 'auto' | 'notify' | 'manual';
+type UpdateStatus = 'idle' | 'checking' | 'upToDate' | 'available' | 'downloading' | 'verifying' | 'ready' | 'restartRequired' | 'installing' | 'updated' | 'failed';
+/** `retry` names the step that failed, so "Try again" repeats it. */
+type UpdateState = { status: UpdateStatus; current: string; version: string; notes: string[]; progress: number; error: string; retry: '' | 'check' | 'download' | 'install'; lastChecked: number | null };
 
 const empty: PopupState = { requestId: 0, status: 'idle', query: '', entries: [], message: '', stale: false, expanded: false, direction: 'se', canBack: false, canForward: false, saved: false };
 const idleSpeech: TtsState = { status: 'disabled', progress: 0, message: '', owner: '' };
@@ -59,6 +63,12 @@ const paths: Record<string, string> = {
   keyboard: 'M3.5 7h17v10h-17z M7 10.5h1 M10.5 10.5h1 M14 10.5h1 M17 10.5h0 M8 14h8',
   contrast: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z M12 3.5v17',
   history: 'M4 12a8 8 0 1 0 2.3-5.6 M4 4.5v4h4 M12 8v4l3 2',
+  download: 'M12 4v11 M7.5 10.5 12 15l4.5-4.5 M5 19h14',
+  refresh: 'M19.5 12a7.5 7.5 0 0 1-13.1 5 M4.5 12a7.5 7.5 0 0 1 13.1-5 M17.6 3.5V7h-3.5 M6.4 20.5V17h3.5',
+  alert: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z M12 8v5 M12 16h.01',
+  check: 'M12 3.5a8.5 8.5 0 1 0 0 17 8.5 8.5 0 0 0 0-17z M8.5 12.2l2.4 2.4 4.6-4.8',
+  external: 'M14 4h6v6 M20 4l-9 9 M18 14v5H5V6h5',
+  notes: 'M6 3.5h8l4 4v13H6z M14 3.5v4h4 M9 12h6 M9 15.5h6',
   database: 'M5 6c0-1.4 3.1-2.5 7-2.5s7 1.1 7 2.5-3.1 2.5-7 2.5S5 7.4 5 6z M5 6v12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6 M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5',
 };
 const Icon = ({ name, filled }: { name: string; filled?: boolean }) => <svg viewBox="0 0 24 24" width="18" height="18" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>;
@@ -292,7 +302,7 @@ export function PopupView() {
   </main>;
 }
 
-type Section = 'general' | 'pronunciation' | 'shortcuts' | 'appearance' | 'saved' | 'data';
+type Section = 'general' | 'pronunciation' | 'shortcuts' | 'appearance' | 'saved' | 'data' | 'updates';
 const sections: { id: Section; label: string; icon: string; subtitle: string }[] = [
   { id: 'general', label: 'General', icon: 'sun', subtitle: 'Core behaviour and startup options.' },
   { id: 'pronunciation', label: 'Pronunciation', icon: 'speaker', subtitle: 'Voice, phonetics and speech playback.' },
@@ -300,7 +310,13 @@ const sections: { id: Section; label: string; icon: string; subtitle: string }[]
   { id: 'appearance', label: 'Appearance', icon: 'contrast', subtitle: 'Choose your preferred reading experience.' },
   { id: 'saved', label: 'Saved words', icon: 'history', subtitle: 'Words you starred in the popup.' },
   { id: 'data', label: 'Data', icon: 'database', subtitle: 'What DIO keeps on this computer.' },
+  { id: 'updates', label: 'Updates', icon: 'download', subtitle: 'Keep DIO up to date.' },
 ];
+/** The section named in `?settings&section=…`, used when a notification opens Settings. */
+const requestedSection = (search: string): Section => {
+  const id = new URLSearchParams(search).get('section');
+  return sections.find(item => item.id === id)?.id || 'general';
+};
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return <label className="row"><span className="row-label">{label}{hint && <small>{hint}</small>}</span>{children}</label>;
@@ -322,6 +338,70 @@ export function ago(seconds: number, now = Date.now()) {
   return added.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: added.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
 }
 
+const updateModes: [UpdateMode, string, string][] = [
+  ['auto', 'Automatically install updates', 'Recommended. Downloads in the background and installs when you are not using DIO.'],
+  ['notify', 'Notify me when updates are available', 'You choose when to download and install each version.'],
+  ['manual', 'Manually check for updates', 'DIO never checks on its own. Use Check for updates.'],
+];
+const updateBusy: UpdateStatus[] = ['checking', 'downloading', 'verifying', 'installing'];
+const pendingStatuses: UpdateStatus[] = ['available', 'downloading', 'verifying', 'ready', 'restartRequired', 'installing'];
+const failedTitle = { check: 'Unable to check for updates', download: 'Unable to download update', install: 'Unable to install update', '': 'Update failed' };
+
+/** Settings → Updates: version and status, the panel for the current update step, and the update preference. */
+export function UpdatesPane({ mode, onMode, onError }: { mode: UpdateMode; onMode: (mode: UpdateMode) => void; onError: (message: string) => void }) {
+  const [update, setUpdate] = useState<UpdateState | null>(null);
+  useEffect(() => {
+    let seen = false;
+    const events = listen<UpdateState>('update-state', event => { seen = true; setUpdate(event.payload); });
+    call<UpdateState>('update_state').then(value => { if (!seen) setUpdate(value); }).catch(e => onError(asError(e)));
+    return () => { void events.then(unlisten => unlisten()); };
+  }, []);
+  if (!update) return null;
+  const run = (command: string, args?: Record<string, unknown>) => { onError(''); void call(command, args).catch(e => onError(asError(e))); };
+  const { status, version, current } = update;
+  const percent = Math.round(update.progress * 100);
+  const lastChecked = update.lastChecked ? `Last checked ${ago(update.lastChecked).toLocaleLowerCase()}` : '';
+  const line = status === 'checking' ? 'Checking for updates…'
+    : status === 'upToDate' ? <><Icon name="check"/>You're up to date{lastChecked && ` · ${lastChecked}`}</>
+    : pendingStatuses.includes(status) ? `Version ${version} is available`
+    : status === 'updated' ? <><Icon name="check"/>Updated to v{current}</>
+    : lastChecked || (mode === 'manual' ? 'Not checked yet' : 'DIO checks for updates once a day');
+  const releaseNotes = (label: string, version: string) => <button className="text-link" onClick={() => run('open_release_notes', { version })}>{label} <Icon name="external"/></button>;
+  const progress = (value: number) => <div className="progress" role="progressbar" aria-label="Download progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}><span style={{ width: `${value}%` }}/></div>;
+  const panel = (icon: string, title: string, sub: string, body: React.ReactNode, actions?: React.ReactNode, aside?: string) => <div className={`update-panel ${status}`} role={status === 'failed' ? 'alert' : 'status'}>
+    <div className="update-head"><Icon name={icon}/><div><strong>{title}</strong><span>{sub}</span></div>{aside && <span className="update-percent">{aside}</span>}</div>
+    {body}
+    {actions && <div className="update-actions">{actions}</div>}
+  </div>;
+  const details = status === 'available' ? panel('download', `DIO v${version} is available`, `Current version: v${current}`, <>
+      {update.notes.length > 0 && <><h2>What's new</h2><ul>{update.notes.map(note => <li key={note}>{note}</li>)}</ul></>}
+      {releaseNotes('Read full release notes', version)}
+    </>, <><button className="secondary" onClick={() => run('remind_later')}>Remind me later</button><button onClick={() => run('download_update')}>Download &amp; install</button></>)
+    : status === 'downloading' ? panel('download', `Downloading DIO v${version}`, 'Downloading update package', <>{progress(percent)}<p className="hint">You can continue using DIO while the update downloads.</p></>, <button className="secondary" onClick={() => run('cancel_update')}>Cancel download</button>, `${percent}%`)
+    : status === 'verifying' ? panel('download', 'Verifying update', `Checking the signature of DIO v${version}.`, progress(100))
+    : status === 'ready' ? panel('refresh', 'Update ready to install', `DIO v${version} has been downloaded and verified.`, <p>DIO will restart briefly to complete the installation.</p>, <><button className="secondary" onClick={() => run('postpone_update')}>Later</button><button onClick={() => run('install_update')}>Restart and update</button></>)
+    : status === 'restartRequired' ? panel('refresh', 'Restart required', `DIO v${version} has been downloaded and verified.`, <p>DIO will install it while you are away from your computer, or you can restart now.</p>, <button onClick={() => run('install_update')}>Restart and update</button>)
+    : status === 'installing' ? panel('refresh', `Installing DIO v${version}`, 'DIO will close and reopen in a moment.', null)
+    : status === 'updated' ? panel('check', `DIO has been updated to v${current}`, update.notes[0] || 'The update installed successfully.', releaseNotes("View what's new", current), <button className="secondary" onClick={() => run('dismiss_update')}>Dismiss</button>)
+    : status === 'failed' ? panel('alert', failedTitle[update.retry], update.error, <p>{update.retry === 'install' ? 'Your current version of DIO is still installed. If DIO does not start correctly, download DIO-setup.exe again from the website. Your settings and saved words are kept.' : 'Your current version of DIO remains available.'}</p>, <><button className="secondary" onClick={() => run('dismiss_update')}>Dismiss</button><button onClick={() => run('retry_update')}>Try again</button></>)
+    : null;
+  return <>
+    <div className="model-row">
+      <span className="update-summary"><strong>DIO v{current}</strong><span className="update-line" role="status">{line}</span></span>
+      <button className="secondary" disabled={updateBusy.includes(status)} onClick={() => run('check_for_updates')}>Check for updates</button>
+    </div>
+    {details}
+    <hr/>
+    <fieldset className="radio-group">
+      <legend>Update preferences</legend>
+      {updateModes.map(([id, label, hint]) => <label className="radio-row" key={id}><input type="radio" name="update-mode" value={id} checked={mode === id} onChange={() => onMode(id)}/><span className="row-label">{label}<small>{hint}</small></span></label>)}
+      <p className="hint">You can change this at any time.</p>
+    </fieldset>
+    <hr/>
+    <button className="link-row" onClick={() => run('open_release_notes', { version: null })}><Icon name="notes"/><span>Release notes</span><Icon name="external"/></button>
+  </>;
+}
+
 function SettingsView() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
@@ -332,7 +412,7 @@ function SettingsView() {
   const [capturing, setCapturing] = useState<'' | 'shortcut' | 'readerShortcut'>('');
   const [speech, setSpeech] = useState<TtsState>(idleSpeech);
   const [voices, setVoices] = useState<Voice[]>([]);
-  const [section, setSection] = useState<Section>('general');
+  const [section, setSection] = useState<Section>(() => requestedSection(window.location.search));
   const [savedFilter, setSavedFilter] = useState('');
   const [savedShown, setSavedShown] = useState(60);
   const accept = (value: Settings) => { persisted.current = value; setSettings(value); };
@@ -351,7 +431,8 @@ function SettingsView() {
     const subscription = listen('saved-changed', () => { void call<SavedWord[]>('saved_words').then(setWords).catch(e => setError(asError(e))); });
     const speechEvents = listen<TtsState>('tts-state', event => setSpeech(event.payload));
     const preferences = listen<Settings>('settings-changed', event => accept(event.payload));
-    return () => { void subscription.then(unlisten => unlisten()); void speechEvents.then(unlisten => unlisten()); void preferences.then(unlisten => unlisten()); };
+    const opened = listen<string>('settings-section', event => setSection(requestedSection(`?section=${event.payload}`)));
+    return () => { void subscription.then(unlisten => unlisten()); void speechEvents.then(unlisten => unlisten()); void preferences.then(unlisten => unlisten()); void opened.then(unlisten => unlisten()); };
   }, []);
   /** Updates the controls without saving, for values still being dragged or typed. */
   const change = (patch: Partial<Settings>) => setSettings(current => current && { ...current, ...patch });
@@ -438,6 +519,7 @@ function SettingsView() {
       <div className="model-row"><span>Dictionary cache</span><button className="secondary" onClick={() => void clear()}>Clear dictionary cache</button></div>
       <p className="hint">DIO checks its local cache, then sends the word to Simple English Wiktionary and the Free Dictionary API, and uses its bundled dictionary when offline or when neither has an entry. Saved words and settings stay on this computer.</p>
     </>,
+    updates: <UpdatesPane mode={settings.updateMode || 'auto'} onMode={updateMode => void commit({ updateMode })} onError={setError}/>,
   };
   return <main className={`settings theme-${settings.theme || 'system'}`}>
     <nav className="sidebar" role="tablist" aria-label="Settings sections" aria-orientation="vertical" onKeyDown={tabKeys(sections.map(item => item.id), section, setSection, true)}>

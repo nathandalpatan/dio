@@ -31,11 +31,26 @@ let state = {
   stale: false, expanded, direction: mode === 'worst' ? 'nw' : 'se', canBack: false, canForward: false, saved: false,
 };
 let settings = {
-  shortcut: 'Ctrl+Alt+D', keyboardEnabled: true, middleClick: false, theme: 'light', size: 'standard', textSize: params.get('text') || 'compact', expanded: false, autoplay: false,
+  shortcut: 'Ctrl+Alt+D', keyboardEnabled: true, middleClick: false, theme: params.get('theme') || 'light', size: 'standard', textSize: params.get('text') || 'compact', expanded: false, autoplay: false,
   startup: false, reducedMotion: false, accent: 'us', ttsEnabled: true, voice: 'af_heart', speed: 1, volume: 1,
   readerEnabled: true, readerShortcut: 'Ctrl+Alt+R', readerMaxChars: 2000,
 };
 let speech = { status: 'ready', progress: 0, message: '', owner: '' };
+const updateFixture = params.get('update') || 'upToDate';
+const notes = ['Automatic updates, with a choice of how DIO installs them.', 'Faster offline dictionary lookups.', 'Clearer pronunciation playback.', 'Fixed popup alignment near the screen edge.'];
+const failures: Record<string, [string, string]> = {
+  failedDownload: ['download', 'The connection was interrupted.'],
+  failedSignature: ['download', 'The update could not be verified. Its signature does not match DIO’s signing key, so it was discarded.'],
+  failedInstall: ['install', 'The installer did not finish.'],
+  failedCheck: ['check', 'DIO could not reach GitHub. Check your internet connection.'],
+};
+let update = {
+  status: updateFixture.startsWith('failed') ? 'failed' : updateFixture, current: updateFixture === 'updated' ? '0.2.1' : '0.2.0', version: '0.2.1',
+  notes: updateFixture === 'updated' ? ['Faster offline lookups and clearer pronunciation playback.'] : notes, progress: updateFixture === 'downloading' ? 0.68 : 0,
+  retry: failures[updateFixture]?.[0] || '', error: failures[updateFixture]?.[1] || '',
+  lastChecked: updateFixture === 'idle' ? null : Math.floor(Date.now() / 1000) - 120,
+};
+const setUpdate = (patch: Partial<typeof update>) => { update = { ...update, ...patch }; emit('update-state', update); };
 const parts = ['analysis', 'context', 'meaning', 'memory', 'language', 'pattern', 'reading', 'reference', 'speech', 'study', 'syntax', 'usage'];
 const words = mode === 'large' ? Array.from({ length: 1284 }, (_, index) => `${parts[index % parts.length]} ${parts[Math.floor(index / parts.length) % parts.length]} ${Math.floor(index / 144) + 1}`) : mode === 'empty' ? [] : ['truth'];
 const emit = <T,>(name: string, payload: T) => listeners.get(name)?.forEach(listener => listener({ payload }));
@@ -59,6 +74,23 @@ export async function invoke<T>(command: string, args?: Record<string, unknown>)
       return settings as T;
     case 'saved_words': return words.map((word, index) => ({ word, added: Math.floor(Date.now() / 1000) - index * 900 })) as T;
     case 'tts_state': return speech as T;
+    case 'update_state': return update as T;
+    case 'check_for_updates': setUpdate({ status: 'checking' }); setTimeout(() => setUpdate({ status: 'available', lastChecked: Math.floor(Date.now() / 1000) }), 1200); break;
+    case 'download_update':
+    case 'retry_update': {
+      setUpdate({ status: 'downloading', progress: 0, error: '', retry: '' });
+      const tick = setInterval(() => {
+        if (update.status !== 'downloading') { clearInterval(tick); return; }
+        if (update.progress >= 1) { clearInterval(tick); setUpdate({ status: 'verifying' }); setTimeout(() => setUpdate({ status: 'ready' }), 900); return; }
+        setUpdate({ progress: Math.min(1, update.progress + 0.1) });
+      }, 250);
+      break;
+    }
+    case 'cancel_update': setUpdate({ status: 'available', progress: 0 }); break;
+    case 'postpone_update': setUpdate({ status: 'restartRequired' }); break;
+    case 'install_update': setUpdate({ status: 'installing' }); break;
+    case 'remind_later':
+    case 'dismiss_update': setUpdate({ status: 'idle', error: '', retry: '' }); break;
     case 'tts_voices': return [{ id: 'af_heart', name: 'Heart', accent: 'us' }, { id: 'bf_emma', name: 'Emma', accent: 'uk' }] as T;
     case 'expand': state = { ...state, expanded: Boolean(args?.expanded) }; emit('popup-state', state); break;
     case 'save_word': state = { ...state, saved: Boolean(args?.save) }; emit('popup-state', state); emit('saved-changed', null); break;
