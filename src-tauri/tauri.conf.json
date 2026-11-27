@@ -37,5 +37,13 @@
       "nsis"
     ],
     "icon": ["icons/icon.ico", "icons/icon.png"]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ4M0U3N0NDOTFCNTFCMzAKUldRd0c3V1J6SGMrU054Nm5LT3pFWGc3NXNoOTJTQ0F2NWdibUtqcDdJRk0wNzl1TjgzRmUxT28K",
+      "endpoints": ["https://github.com/nathandalpatan/dio/releases/latest/download/latest.json"],
+      "requireSignedVersion": true,
+      "windows": { "installMode": "passive" }
+    }
   }
 }

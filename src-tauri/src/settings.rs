@@ -108,6 +108,14 @@ pub fn update(app: &AppHandle, next: Settings) -> Result<(), String> {
         }
         return Err(error);
     }
+    if next.update_mode != current.update_mode {
+        // Only the installer reads this copy, so failing to mirror it must not undo the change.
+        let _ = crate::install_prefs::remember(
+            &crate::install_prefs::Registry::new(&app.config().identifier),
+            next.update_mode(),
+            false,
+        );
+    }
     shared(app).tts.set_volume(next.volume);
     shared(app).tts.set_enabled(next.tts_enabled);
     if next.tts_enabled && !current.tts_enabled {

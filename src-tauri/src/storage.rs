@@ -13,6 +13,20 @@ pub fn now() -> i64 {
         .unwrap_or_default()
         .as_secs() as i64
 }
+/// Writes `value` as JSON through a temporary file, so a crash never leaves a half-written file.
+pub fn write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let temporary = path.with_extension("tmp");
+    let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
+    {
+        use std::io::Write;
+        let mut file = fs::File::create(&temporary).map_err(|e| e.to_string())?;
+        file.write_all(&bytes)
+            .and_then(|_| file.sync_all())
+            .map_err(|e| e.to_string())?;
+    }
+    // Windows rename replaces an existing file atomically through MoveFileExW.
+    fs::rename(temporary, path).map_err(|e| e.to_string())
+}
 pub struct Storage {
     db: Connection,
     settings_path: PathBuf,
@@ -52,17 +66,7 @@ impl Storage {
         }
     }
     pub fn write_settings(&self, settings: &Settings) -> Result<(), String> {
-        let temporary = self.settings_path.with_extension("tmp");
-        let bytes = serde_json::to_vec_pretty(settings).map_err(|e| e.to_string())?;
-        {
-            use std::io::Write;
-            let mut file = fs::File::create(&temporary).map_err(|e| e.to_string())?;
-            file.write_all(&bytes)
-                .and_then(|_| file.sync_all())
-                .map_err(|e| e.to_string())?;
-        }
-        // Windows rename replaces an existing file atomically through MoveFileExW.
-        fs::rename(temporary, &self.settings_path).map_err(|e| e.to_string())
+        write_json(&self.settings_path, settings)
     }
     pub fn get(&self, word: &str, timestamp: i64) -> Result<Option<Cached>, String> {
         let row: Option<(String, i64)> = self

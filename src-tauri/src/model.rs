@@ -26,7 +26,10 @@ pub struct Settings {
     pub popup_custom: Option<(f64, f64)>,
     /// Size the user dragged the expanded popup to, in logical pixels.
     pub expanded_custom: Option<(f64, f64)>,
+    /// auto, notify or manual. `None` until the installer's choice or the default is adopted at startup.
+    pub update_mode: Option<String>,
 }
+pub const UPDATE_MODES: [&str; 3] = ["auto", "notify", "manual"];
 /// Smallest popup the user can resize to, in logical pixels. Matches the popup window's minimum size.
 pub const MIN_POPUP: (f64, f64) = (300.0, 220.0);
 impl Default for Settings {
@@ -52,10 +55,14 @@ impl Default for Settings {
             reader_max_chars: 2000,
             popup_custom: None,
             expanded_custom: None,
+            update_mode: None,
         }
     }
 }
 impl Settings {
+    pub fn update_mode(&self) -> &str {
+        self.update_mode.as_deref().unwrap_or("auto")
+    }
     pub fn validate(&self) -> Result<(), String> {
         if !["system", "light", "dark"].contains(&self.theme.as_str())
             || !["small", "standard", "large"].contains(&self.size.as_str())
@@ -84,6 +91,13 @@ impl Settings {
         };
         if !self.popup_custom.is_none_or(valid) || !self.expanded_custom.is_none_or(valid) {
             return Err("Invalid popup size.".into());
+        }
+        if !self
+            .update_mode
+            .as_deref()
+            .is_none_or(|mode| UPDATE_MODES.contains(&mode))
+        {
+            return Err("Invalid update preference.".into());
         }
         Ok(())
     }
@@ -380,6 +394,26 @@ mod tests {
         }
         assert!(Settings {
             text_size: "huge".into(),
+            ..Settings::default()
+        }
+        .validate()
+        .is_err());
+    }
+    #[test]
+    fn update_mode_is_optional_and_validated() {
+        let old: Settings = serde_json::from_str(r#"{"theme":"dark"}"#).unwrap();
+        assert_eq!(old.update_mode, None);
+        assert_eq!(old.update_mode(), "auto");
+        for mode in UPDATE_MODES {
+            let settings = Settings {
+                update_mode: Some(mode.into()),
+                ..Settings::default()
+            };
+            assert!(settings.validate().is_ok());
+            assert_eq!(settings.update_mode(), mode);
+        }
+        assert!(Settings {
+            update_mode: Some("sometimes".into()),
             ..Settings::default()
         }
         .validate()

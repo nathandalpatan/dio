@@ -114,6 +114,21 @@ impl SelectionReader {
 pub fn foreground() -> isize {
     unsafe { GetForegroundWindow().0 as isize }
 }
+/// Seconds since the last keyboard or mouse input in this session, or 0 if unknown.
+pub fn idle_seconds() -> u64 {
+    use windows::Win32::System::SystemInformation::GetTickCount;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+    let mut info = LASTINPUTINFO {
+        cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+        dwTime: 0,
+    };
+    if unsafe { GetLastInputInfo(&mut info) }.as_bool() {
+        // Both are milliseconds since boot and wrap after 49.7 days, so subtract with wrapping.
+        (unsafe { GetTickCount() }.wrapping_sub(info.dwTime) / 1000) as u64
+    } else {
+        0
+    }
+}
 unsafe fn read_selection(
     automation: &IUIAutomation,
     original: isize,

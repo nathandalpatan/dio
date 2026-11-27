@@ -2,6 +2,7 @@
 
 mod clipboard;
 mod dictionary;
+mod install_prefs;
 mod local_dictionary;
 mod model;
 mod native;
@@ -9,7 +10,9 @@ mod popup;
 mod pronunciation;
 mod settings;
 mod storage;
+mod toast;
 mod tts;
+mod updates;
 
 use dictionary::Dictionary;
 use local_dictionary::LocalDictionary;
@@ -24,6 +27,7 @@ use storage::{now, Storage};
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tts::{model_store, Tts, TtsState};
+use updates::Updates;
 
 struct AppState {
     dictionary: Dictionary,
@@ -650,7 +654,7 @@ async fn pronunciation(app: AppHandle, url: String) -> Result<tauri::ipc::Respon
 
 #[tauri::command]
 async fn show_settings(app: AppHandle) -> Result<(), String> {
-    open_settings(&app)
+    open_settings(&app, None)
 }
 #[tauri::command]
 fn tts_state(app: AppHandle) -> TtsState {
@@ -800,32 +804,139 @@ fn is_binding(shortcut: &Shortcut, binding: &str) -> bool {
         .is_ok_and(|parsed| parsed.id() == shortcut.id())
 }
 
-fn open_settings(app: &AppHandle) -> Result<(), String> {
+/// Opens Settings, on `section` when given (a notification opens it on Updates).
+fn open_settings(app: &AppHandle, section: Option<&str>) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("settings") {
         window
             .show()
             .and_then(|_| window.set_focus())
             .map_err(|e| e.to_string())?;
+        if let Some(section) = section {
+            let _ = window.emit("settings-section", section);
+        }
     } else {
-        WebviewWindowBuilder::new(
-            app,
-            "settings",
-            WebviewUrl::App("index.html?settings".into()),
-        )
-        .title("DIO Settings")
-        .inner_size(880.0, 600.0)
-        .min_inner_size(720.0, 480.0)
-        .build()
-        .map_err(|e| e.to_string())?;
+        let url = match section {
+            Some(section) => format!("index.html?settings&section={section}"),
+            None => "index.html?settings".into(),
+        };
+        WebviewWindowBuilder::new(app, "settings", WebviewUrl::App(url.into()))
+            .title("DIO Settings")
+            .inner_size(880.0, 600.0)
+            .min_inner_size(720.0, 480.0)
+            .build()
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+fn update_mode(app: &AppHandle) -> String {
+    shared(app)
+        .settings
+        .lock()
+        .unwrap()
+        .update_mode()
+        .to_owned()
+}
+
+/// What the user is doing, so a downloaded update never restarts DIO while it is in use.
+fn update_activity(app: &AppHandle) -> updates::Activity {
+    let state = shared(app);
+    let popup_visible = app.state::<Hooks>().visible.load(Ordering::Relaxed)
+        || app
+            .get_webview_window("popup")
+            .and_then(|window| window.is_visible().ok())
+            .unwrap_or(false);
+    updates::Activity {
+        popup_visible,
+        speaking: state.tts.state().active(),
+        busy: state.capturing.load(Ordering::Acquire) || state.install.lock().unwrap().is_some(),
+        idle_seconds: native::idle_seconds(),
+    }
+}
+
+/// Sends update states to the Settings window and shows update notifications.
+struct UpdateSink(AppHandle);
+impl updates::Sink for UpdateSink {
+    fn state(&self, state: &updates::UpdateState) {
+        let _ = self.0.emit("update-state", state);
+    }
+    fn toast(&self, toast: updates::Toast) {
+        let app = self.0.clone();
+        // WinRT notifications need COM, which the main thread has.
+        let _ = self.0.run_on_main_thread(move || {
+            let clicked = app.clone();
+            let result = toast::show(&app.config().identifier, &toast, move |arguments| {
+                on_toast_click(&clicked, &arguments)
+            });
+            if let Err(error) = result {
+                eprintln!("Could not show the update notification: {error}");
+            }
+        });
+    }
+}
+
+fn on_toast_click(app: &AppHandle, arguments: &str) {
+    match arguments {
+        toast::VIEW_UPDATE => {
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                let _ = open_settings(&handle, Some("updates"));
+            });
+        }
+        toast::LATER => app.state::<Arc<Updates>>().remind_later(),
+        _ => {}
+    }
+}
+
+#[tauri::command]
+fn update_state(updates: tauri::State<'_, Arc<Updates>>) -> updates::UpdateState {
+    updates.state()
+}
+#[tauri::command]
+fn check_for_updates(app: AppHandle, updates: tauri::State<'_, Arc<Updates>>) {
+    updates.inner().check(&update_mode(&app), false);
+}
+#[tauri::command]
+fn download_update(updates: tauri::State<'_, Arc<Updates>>) {
+    updates.inner().download(false);
+}
+#[tauri::command]
+fn cancel_update(updates: tauri::State<'_, Arc<Updates>>) {
+    updates.cancel();
+}
+#[tauri::command]
+fn retry_update(app: AppHandle, updates: tauri::State<'_, Arc<Updates>>) {
+    updates.inner().retry(&update_mode(&app));
+}
+#[tauri::command]
+fn postpone_update(updates: tauri::State<'_, Arc<Updates>>) {
+    updates.postpone();
+}
+/// Restarts into the downloaded update at the user's request. DIO exits if the installer starts.
+#[tauri::command]
+fn install_update(app: AppHandle, updates: tauri::State<'_, Arc<Updates>>) {
+    shared(&app).tts.stop(None);
+    updates.install();
+}
+#[tauri::command]
+fn remind_later(updates: tauri::State<'_, Arc<Updates>>) {
+    updates.remind_later();
+}
+#[tauri::command]
+fn dismiss_update(updates: tauri::State<'_, Arc<Updates>>) {
+    updates.dismiss();
+}
+#[tauri::command]
+fn open_release_notes(version: Option<String>) -> Result<(), String> {
+    toast::open_url(&toast::release_notes_url(version.as_deref())?)
 }
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            let _ = open_settings(app);
+            let _ = open_settings(app, None);
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
@@ -858,7 +969,7 @@ fn main() {
             };
             let directory = app.path().app_data_dir()?;
             let storage = Storage::open(&directory).map_err(std::io::Error::other)?;
-            let (settings, settings_error) = match storage.settings() {
+            let (mut settings, settings_error) = match storage.settings() {
                 Ok(settings) => (settings, None),
                 Err(error) => (
                     Settings::default(),
@@ -867,6 +978,18 @@ fn main() {
                     )),
                 ),
             };
+            // A settings file that failed to load is left alone rather than overwritten with defaults.
+            if settings_error.is_none() {
+                let registry = install_prefs::Registry::new(&app.config().identifier);
+                let adoption = install_prefs::adopt(settings.update_mode.as_deref(), &registry);
+                if adoption.changed {
+                    settings.update_mode = Some(adoption.mode.clone());
+                }
+                if !adoption.changed || storage.write_settings(&settings).is_ok() {
+                    let _ =
+                        install_prefs::remember(&registry, &adoption.mode, adoption.from_installer);
+                }
+            }
             let dictionary = Dictionary::new().map_err(std::io::Error::other)?;
             let local_path = app.path().resolve(
                 "resources/english.sqlite3",
@@ -901,6 +1024,20 @@ fn main() {
             });
             shared(app.handle()).tts.warm();
             app.manage(Hooks::new(app.handle().clone(), settings.middle_click));
+            let updates = Updates::new(
+                &app.package_info().version.to_string(),
+                directory.join("update.json"),
+                Arc::new(updates::PluginSource::new(app.handle().clone())),
+                Arc::new(UpdateSink(app.handle().clone())),
+                Arc::new(storage::now),
+            );
+            app.manage(updates.clone());
+            let (mode_app, activity_app) = (app.handle().clone(), app.handle().clone());
+            updates::schedule(
+                updates,
+                move || update_mode(&mode_app),
+                move || update_activity(&activity_app),
+            );
             let mut errors: Vec<String> = settings::bindings(&settings)
                 .into_iter()
                 .filter_map(|binding| {
@@ -927,7 +1064,7 @@ fn main() {
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "settings" => {
-                        let _ = open_settings(app);
+                        let _ = open_settings(app, None);
                     }
                     "stop" => shared(app).tts.stop(None),
                     "quit" => {
@@ -965,7 +1102,17 @@ fn main() {
             tts_stop,
             tts_install,
             tts_cancel_install,
-            tts_remove
+            tts_remove,
+            update_state,
+            check_for_updates,
+            download_update,
+            cancel_update,
+            retry_update,
+            postpone_update,
+            install_update,
+            remind_later,
+            dismiss_update,
+            open_release_notes
         ])
         .run(tauri::generate_context!())
         .expect("failed to run DIO");
