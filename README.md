@@ -15,6 +15,7 @@ Built with Rust and Tauri, DIO combines offline dictionary resources with online
 - **Rich definitions**: definitions, examples, synonyms, and word origins when available.
 - **Saved vocabulary**: bookmark words and search your saved list for future reference.
 - **Customisable controls**: configure both shortcuts and optional middle-click activation.
+- **Updates**: install new versions automatically, be notified, or check yourself. Every update is signature-checked, and settings, saved words, and the voice model are kept.
 - **Local-first privacy**: offline fallback dictionary, local speech, clipboard preservation, and local data storage.
 
 ## Getting Started
@@ -58,7 +59,7 @@ Accents are labelled only when the source labels them, and unknown words get no 
 
 Speech runs in-process on the CPU through ONNX Runtime. There is no Python runtime, no background server, and no extra process. Text you read aloud stays in memory only while it plays. The only speech-related network traffic is the model download, which you start yourself. It comes from a pinned Hugging Face commit, and each file is verified against a SHA-256 checksum built into DIO. A damaged model is detected and removed. DIO uses Kokoro's own text-to-phoneme rules (misaki) without eSpeak NG, which keeps it permissively licensed.
 
-Settings, cached definitions, saved vocabulary, and the voice model are stored locally.
+Settings, cached definitions, saved vocabulary, and the voice model are stored locally. To look for updates, DIO fetches a small file from GitHub Releases at most once a day, or only when you click **Check for updates** if you chose to check manually.
 
 ## Tech Stack
 
@@ -99,16 +100,34 @@ The Windows installer is generated in:
 
 ### Release
 
-Bump the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`, build, then attach the installer twice: once as built and once as `DIO-setup.exe`, which the website's download button always fetches from the latest release.
+Pushes and pull requests to `main` run `.github/workflows/ci.yml`, which checks the version files against `CHANGELOG.md` and runs the tests. It never publishes.
+
+To release:
+
+1. Set the same version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`.
+2. Add its entry to `CHANGELOG.md` with a `Summary:` line and dated `## [X.Y.Z] - YYYY-MM-DD`. This one entry becomes the GitHub release notes, the notes DIO shows when it updates, and the website's changelog.
+3. Run `node tools/changelog.mjs check X.Y.Z --release`, commit to `main`, then tag and push:
 
 ```bash
-cp src-tauri/target/release/bundle/nsis/DIO_X.Y.Z_x64-setup.exe DIO-setup.exe
-gh release create vX.Y.Z src-tauri/target/release/bundle/nsis/DIO_X.Y.Z_x64-setup.exe DIO-setup.exe
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
+
+`.github/workflows/release.yml` checks the tag, versions and changelog, runs the tests, then builds, signs and publishes the installer, its signature, `latest.json` for the updater, and a `DIO-setup.exe` copy for the website. A tag with a suffix such as `vX.Y.Z-rc.1` publishes a prerelease, which installed copies and the website ignore.
+
+One-time setup for signing:
+
+```bash
+pnpm tauri signer generate -w ~/.tauri/dio.key
+```
+
+Put the public key in `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`. Create a `release` environment in the repository settings with yourself as a required reviewer, and add the private key and its password there as `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Keep a backup of the key: without it, installed copies cannot be updated.
+
+The installer's update preference page is part of `src-tauri/installer/installer.nsi`, a copy of Tauri's NSIS template with DIO's changes marked `; DIO:`. Re-apply them to the new upstream template when upgrading the Tauri CLI.
 
 ### Website
 
-The download page lives in `site/` and renders the Context design from `prototypes/design/`. Run `pnpm site:build` to build it. `.github/workflows/pages.yml` publishes it to GitHub Pages when the site or design changes on `main`.
+The download page lives in `site/` and renders the Context design from `prototypes/design/`; `site/changelog/` renders `CHANGELOG.md`. Run `pnpm site:build` to build it. `.github/workflows/pages.yml` publishes it to GitHub Pages when the site or design changes on `main`.
 
 ### Tests
 
