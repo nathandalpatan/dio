@@ -9,7 +9,8 @@ export const releases = 'https://github.com/nathandalpatan/dio/releases';
 const shots: Record<string, string> = { chrome: chromeShot, acrobat: acrobatShot, terminal: terminalShot, steam: steamShot };
 const shot = (name: string) => shots[name];
 
-export function SiteNav({ concept, quietMenu = false }: { concept: string; quietMenu?: boolean }) {
+/** `home` is the path back to the home page, so the links also work from the changelog page. */
+export function SiteNav({ concept, quietMenu = false, home = '' }: { concept: string; quietMenu?: boolean; home?: string }) {
   const [open, setOpen] = useState(false);
   const header = useRef<HTMLElement>(null);
   const menu = useRef<HTMLButtonElement>(null);
@@ -22,10 +23,10 @@ export function SiteNav({ concept, quietMenu = false }: { concept: string; quiet
     return () => { document.removeEventListener('pointerdown', onPointerDown); document.removeEventListener('keydown', onKeyDown); };
   }, [open]);
   return <header className={`site-nav ${quietMenu ? 'site-nav--quiet-menu' : ''}`} ref={header}>
-    <a className="site-logo" href="#top">DIO</a><span className="site-concept">{concept}</span>
+    <a className="site-logo" href={`${home}#top`}>DIO</a><span className="site-concept">{concept}</span>
     <button className="site-menu" ref={menu} aria-controls="site-main-nav" aria-expanded={open} onClick={() => setOpen(!open)}><span>{open ? 'Close' : 'Menu'}</span><span className="site-menu__icon" aria-hidden="true"/></button>
     <nav id="site-main-nav" className={open ? 'is-open' : ''} aria-label="Main navigation" onClick={() => setOpen(false)}>
-      <a href="#how">How it works</a><a href="#apps">Apps</a><a href="#speech">Speech</a><a href="#install">Install</a><a href="#questions">Questions</a>
+      <a href={`${home}#how`}>How it works</a><a href={`${home}#apps`}>Apps</a><a href={`${home}#speech`}>Speech</a><a href={`${home}#install`}>Install</a><a href={`${home}#questions`}>Questions</a><a href={`${home || './'}changelog/`} aria-current={home ? 'page' : undefined}>Changelog</a>
     </nav>
     <a className="site-download" href={download}>Download for Windows</a>
   </header>;

@@ -3,7 +3,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: [site/**, prototypes/design/**, tsconfig.site.json, package.json, .github/workflows/pages.yml]
+    paths: [site/**, prototypes/design/**, CHANGELOG.md, tools/changelog-parser.mjs, tsconfig.site.json, package.json, .github/workflows/pages.yml]
   workflow_dispatch:
 
 permissions:
