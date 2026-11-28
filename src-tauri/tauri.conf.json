@@ -47,7 +47,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ4M0U3N0NDOTFCNTFCMzAKUldRd0c3V1J6SGMrU054Nm5LT3pFWGc3NXNoOTJTQ0F2NWdibUtqcDdJRk0wNzl1TjgzRmUxT28K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIyQzUwM0JGMzREMjQ1RkIKUldUN1JkSTB2d1BGSW50b0ZUWUh2UmJJU2NSZjZsS2paVE13QVZ2a3RxSGlvTEJZMHFCQy9VZ1UK",
       "endpoints": ["https://github.com/nathandalpatan/dio/releases/latest/download/latest.json"],
       "requireSignedVersion": true,
       "windows": { "installMode": "passive" }
